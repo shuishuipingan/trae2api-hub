@@ -1,0 +1,2419 @@
+{
+ "schema": 1,
+ "realm": "intl",
+ "generated_at": 1792345773,
+ "source": {
+  "kind": "client-state-vscdb",
+  "client": "Trae（国际版）",
+  "db": "%APPDATA%/Trae/User/globalStorage/state.vscdb",
+  "db_mtime": "2026-10-17T14:10:03",
+  "key": "<uid:19>_AI.agent.model.model_list_map",
+  "groups": {
+   "chat_v3": 10,
+   "builder_v3": 10,
+   "builder": 10,
+   "code_reviewer": 3,
+   "code_review_summary": 2,
+   "refactor": 4,
+   "solo_agent": 9
+  }
+ },
+ "chat_groups": [
+  "chat_v3",
+  "builder_v3",
+  "builder"
+ ],
+ "primary_group": "chat_v3",
+ "models": [
+  {
+   "name": "gemini-2.5-pro-latest",
+   "multimodal": true,
+   "is_default": true,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-2.5-Pro",
+   "prompt_max_tokens": 968000,
+   "context_window_size": {
+    "max": [
+     200000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": true,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 200000,
+      "max_context_list": [
+       200000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "upstream_key": "gemini-2.5-pro-latest",
+   "key": "gemini-2.5-pro-latest",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder"
+   ],
+   "context_window": 200000,
+   "context_window_max": 200000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-2.5-Pro",
+    "gemini-2-5-pro",
+    "gemini25pro",
+    "gemini-2.5-pro-latest",
+    "gemini-2-5-pro-latest",
+    "gemini25prolatest"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "aws_claude_4.7_opus",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Claude-Opus-4.7",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/claude.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/claude.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": false,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": 35
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "enable": true,
+     "data": {
+      "identity_list": [
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 35,
+      "max_turns": 35
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "aws_claude_4.7_opus",
+   "key": "aws_claude_4.7_opus",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Claude-Opus-4.7",
+    "claude-opus-4-7",
+    "claudeopus47",
+    "aws_claude_4.7_opus",
+    "aws-claude-4-7-opus",
+    "awsclaude47opus"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "aws_claude_4.6_sonnet",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Claude-Sonnet-4.6",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/claude.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/claude.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": false,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": 35
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "enable": true,
+     "data": {
+      "identity_list": [
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 35,
+      "max_turns": 35
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "aws_claude_4.6_sonnet",
+   "key": "aws_claude_4.6_sonnet",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Claude-Sonnet-4.6",
+    "claude-sonnet-4-6",
+    "claudesonnet46",
+    "aws_claude_4.6_sonnet",
+    "aws-claude-4-6-sonnet",
+    "awsclaude46sonnet"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini_2.5_flash_premium",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-2.5-Flash",
+   "prompt_max_tokens": 968000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": null,
+   "is_dollar_max": true,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "subKey": "cost_effective",
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "gemini_2.5_flash_premium",
+   "key": "gemini_2.5_flash_premium",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-2.5-Flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "gemini_2.5_flash_premium",
+    "gemini-2-5-flash-premium",
+    "gemini25flashpremium"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini_3_flash",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-3-Flash-Preview",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": null,
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": null,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "subKey": "cost_effective",
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000
+   },
+   "upstream_key": "gemini_3_flash",
+   "key": "gemini_3_flash",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-3-Flash-Preview",
+    "gemini-3-flash-preview",
+    "gemini3flashpreview",
+    "gemini_3_flash",
+    "gemini-3-flash",
+    "gemini3flash"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini_3.1_pro",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-3.1-Pro-Preview",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": null,
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": null,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000
+   },
+   "upstream_key": "gemini_3.1_pro",
+   "key": "gemini_3.1_pro",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-3.1-Pro-Preview",
+    "gemini-3-1-pro-preview",
+    "gemini31propreview",
+    "gemini_3.1_pro",
+    "gemini-3-1-pro",
+    "gemini31pro"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gpt-5.5",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GPT-5.5",
+   "prompt_max_tokens": 240000,
+   "context_window_size": {
+    "max": [
+     272000
+    ],
+    "default": 272000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/openai.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/openai.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": false,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "enable": true,
+     "data": {
+      "identity_list": [
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 272000,
+      "max_context": 272000,
+      "max_context_list": [
+       272000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 272000,
+    "max": 272000
+   },
+   "upstream_key": "gpt-5.5",
+   "key": "gpt-5.5",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 272000,
+   "context_window_max": 272000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GPT-5.5",
+    "gpt-5-5",
+    "gpt55",
+    "gpt-5.5"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gpt-6-astra",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GPT-6-Astra",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 272000
+   },
+   "is_new": true,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/openai.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/openai.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": false,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "enable": true,
+     "data": {
+      "identity_list": [
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 272000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 272000,
+    "max": 1000000
+   },
+   "upstream_key": "gpt-6-astra",
+   "key": "gpt-6-astra",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 272000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GPT-6-Astra",
+    "gpt-6-astra",
+    "gpt6astra"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "grok-4",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Grok-4",
+   "prompt_max_tokens": 112000,
+   "context_window_size": {
+    "max": null,
+    "default": 128000
+   },
+   "is_new": false,
+   "is_beta": true,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/grok-dark.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/grok-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": null,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": null
+   },
+   "tags": [
+    "Beta"
+   ],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "beta": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 128000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 200,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 128000
+   },
+   "upstream_key": "grok-4",
+   "key": "grok-4",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder"
+   ],
+   "context_window": 128000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Grok-4",
+    "grok-4",
+    "grok4"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "kimi-k2",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K2-0905",
+   "prompt_max_tokens": 184000,
+   "context_window_size": {
+    "max": [
+     200000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/kimi-v2-light.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/kimi-v2-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 200000,
+      "max_context_list": [
+       200000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 200000
+   },
+   "upstream_key": "kimi-k2",
+   "key": "kimi-k2",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "code_reviewer",
+    "code_review_summary"
+   ],
+   "context_window": 200000,
+   "context_window_max": 200000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K2-0905",
+    "kimi-k2-0905",
+    "kimik20905",
+    "kimi-k2",
+    "kimik2"
+   ],
+   "chat": true,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini_2.5_flash",
+   "multimodal": true,
+   "is_default": true,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-2.5-Flash",
+   "prompt_max_tokens": 45000,
+   "context_window_size": {
+    "max": null,
+    "default": 53192
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 1,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "subKey": "cost_effective",
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       4,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 53192,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 8192,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 53192
+   },
+   "upstream_key": "gemini_2.5_flash",
+   "key": "gemini_2.5_flash",
+   "groups": [
+    "code_reviewer",
+    "code_review_summary"
+   ],
+   "context_window": 53192,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-2.5-Flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "gemini_2.5_flash"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini-3-pro",
+   "multimodal": true,
+   "is_default": true,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-2.5-Pro",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "NewEnable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": true,
+   "is_max_default": true,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "memory": {
+     "enable": true,
+     "data": {
+      "is_new": true
+     }
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "gemini-3-pro",
+   "key": "gemini-3-pro",
+   "groups": [
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-2.5-Pro",
+    "gemini-2-5-pro",
+    "gemini25pro",
+    "gemini-3-pro",
+    "gemini3pro"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "code-review-judge",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "null",
+   "display_name": "code-review-judge",
+   "prompt_max_tokens": 200000,
+   "context_window_size": {
+    "max": null,
+    "default": null
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": null,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": null,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": null,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": null,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 0,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 216000
+   },
+   "upstream_key": "code-review-judge",
+   "key": "code-review-judge",
+   "groups": [
+    "code_reviewer"
+   ],
+   "context_window": 216000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": false,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "code-review-judge",
+    "codereviewjudge"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "refactor_scoper",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "gemini-2.5-flash",
+   "prompt_max_tokens": 60000,
+   "context_window_size": {
+    "max": null,
+    "default": 85000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 85000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 25000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 85000
+   },
+   "upstream_key": "refactor_scoper",
+   "key": "refactor_scoper",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 85000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "gemini-2.5-flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "refactor_scoper",
+    "refactor-scoper",
+    "refactorscoper"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "refactor_finder",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "gemini-2.5-flash",
+   "prompt_max_tokens": 60000,
+   "context_window_size": {
+    "max": null,
+    "default": 85000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 85000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 25000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 85000
+   },
+   "upstream_key": "refactor_finder",
+   "key": "refactor_finder",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 85000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "gemini-2.5-flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "refactor_finder",
+    "refactor-finder",
+    "refactorfinder"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "refactor_planner",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "gemini-2.5-flash",
+   "prompt_max_tokens": 60000,
+   "context_window_size": {
+    "max": null,
+    "default": 85000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 85000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 25000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 85000
+   },
+   "upstream_key": "refactor_planner",
+   "key": "refactor_planner",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 85000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "gemini-2.5-flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "refactor_planner",
+    "refactor-planner",
+    "refactorplanner"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "refactor_incrementer",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "gemini-2.5-flash",
+   "prompt_max_tokens": 60000,
+   "context_window_size": {
+    "max": null,
+    "default": 85000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": false,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 85000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 25000,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 85000
+   },
+   "upstream_key": "refactor_incrementer",
+   "key": "refactor_incrementer",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 85000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "gemini-2.5-flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "refactor_incrementer",
+    "refactor-incrementer",
+    "refactorincrementer"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "gemini-3-flash-solo",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Gemini-2.5-Flash",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "NewEnable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-us/model/gemini.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": true,
+   "is_max_default": true,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "memory": {
+     "enable": true,
+     "data": {
+      "is_new": true
+     }
+    },
+    "cost": {
+     "enable": true,
+     "subKey": "cost_effective",
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       4,
+       2,
+       3
+      ]
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": true,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "gemini-3-flash-solo",
+   "key": "gemini-3-flash-solo",
+   "groups": [
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Gemini-2.5-Flash",
+    "gemini-2-5-flash",
+    "gemini25flash",
+    "gemini-3-flash-solo",
+    "gemini3flashsolo"
+   ],
+   "chat": false,
+   "realm": "intl"
+  },
+  {
+   "name": "kimi-k2-0905",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K2-0905",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": [
+     200000
+    ],
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       4,
+       1,
+       2,
+       3
+      ]
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 200000,
+      "max_context_list": [
+       200000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 200000
+   },
+   "upstream_key": "kimi-k2-0905",
+   "key": "kimi-k2-0905",
+   "groups": [
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 200000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K2-0905",
+    "kimi-k2-0905",
+    "kimik20905"
+   ],
+   "chat": false,
+   "realm": "intl"
+  }
+ ]
+}
