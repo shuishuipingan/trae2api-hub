@@ -1,0 +1,31 @@
+# 版本库 / 团队协作文件（不进镜像）
+.git
+.gitattributes
+.gitignore
+.team/
+.recon/
+.mimosa/
+_shots/
+docs/
+tests/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+python/
+
+# 运行期状态：凭证与用量绝不进镜像
+accounts/
+usage/
+_acc/
+_use/
+
+# 本地杂项
+*.bat
+*.zip
+*.bak*
+temp_*
+.DS_Store

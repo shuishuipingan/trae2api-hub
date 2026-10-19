@@ -1,0 +1,28 @@
+# ---- 敏感凭证：绝不上传 ----
+# 账号 JSON（明文 token）、面板/API Key 设置、区域状态
+accounts/*
+!accounts/README.txt
+
+# 运行时数据：请求流水与指标快照
+usage/
+
+# ---- Python 运行产物 ----
+__pycache__/
+*.pyc
+*.pyo
+
+# ---- 本地工具 / 临时文件 ----
+.mimosa/
+
+# ---- 自动提取的原生组件（体积大、平台相关，由 _install_umid.py 生成）----
+umid/
+_shots/
+*.log
+_tmp_*
+.DS_Store
+Thumbs.db
+
+# ---- 内嵌便携 Python 运行时（可选，体积大；脚本会自动回退系统 Python）----
+python/
+.tmp_*
+_acc/

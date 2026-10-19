@@ -1,0 +1,33 @@
+services:
+  trae2api-hub:
+    # 从源码构建本地镜像；也可改成 GHCR 预构建镜像：
+    #   image: ghcr.io/<owner>/trae2api-hub:latest
+    image: trae2api-hub:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trae2api-hub
+    restart: unless-stopped
+    ports:
+      # 宿主机:容器。改容器监听端口时 PORT 与这里要一起改
+      - "8791:8791"
+    environment:
+      # HOST/PORT 真实生效：镜像 CMD 不再硬编码 --host/--port（argparse 读环境变量）
+      - HOST=0.0.0.0
+      - PORT=8791
+      # - API_KEY=your_api_key_here
+      # ^ 留空：容器以 --lan 启动，首次自动生成随机 Key 写入 accounts/settings.json
+      #   并打印在日志（docker compose logs trae2api-hub | grep -i "api key"）
+      - TZ=Asia/Shanghai
+    volumes:
+      # 持久化挂载账号凭证与用量流水
+      # NAS / 长期部署建议改成绝对路径，避免源码目录被重装覆盖时连数据一起删掉
+      - ./accounts:/app/accounts
+      - ./usage:/app/usage
+    healthcheck:
+      # 跟随 PORT 环境变量（与镜像内 HEALTHCHECK 同语义）
+      test: ["CMD", "python", "-c", "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/ping' % os.environ.get('PORT','8791'),timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

@@ -1,0 +1,4353 @@
+{
+ "schema": 1,
+ "realm": "cn",
+ "generated_at": 1792345773,
+ "source": {
+  "kind": "client-state-vscdb",
+  "client": "Trae CN（国内版）",
+  "db": "%APPDATA%/Trae CN/User/globalStorage/state.vscdb",
+  "db_mtime": "2026-10-17T13:49:08",
+  "key": "<uid:16>_AI.agent.model.model_list_map",
+  "groups": {
+   "chat_v3": 20,
+   "builder_v3": 10,
+   "builder": 8,
+   "code_reviewer": 2,
+   "code_review_summary": 2,
+   "refactor": 4,
+   "solo_agent": 20
+  }
+ },
+ "chat_groups": [
+  "chat_v3",
+  "builder_v3",
+  "builder"
+ ],
+ "primary_group": "chat_v3",
+ "models": [
+  {
+   "name": "Doubao-Seed-Code",
+   "multimodal": true,
+   "is_default": true,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"open_optimize\":true,\"parallel_tool_calling\":false,\"use_v2_process\":true}",
+   "display_name": "Seed-Code",
+   "prompt_max_tokens": 224000,
+   "context_window_size": {
+    "max": null,
+    "default": 256000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "subsidy_member_discount",
+     "data": {
+      "current": {
+       "discount_type": "subsidy",
+       "before_consumption_rate": 0.12,
+       "consumption_rate": 0.06,
+       "discount": 50
+      },
+      "member": {
+       "before_consumption_rate": 0.12,
+       "after_consumption_rate": 0.03,
+       "discount": 25
+      },
+      "subsidy": {
+       "before_consumption_rate": 0.12,
+       "after_consumption_rate": 0.06,
+       "discount": 50
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.06
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 256000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 256000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "Doubao-Seed-Code",
+   "key": "Doubao-Seed-Code",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 256000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.06,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Seed-Code",
+    "seed-code",
+    "seedcode",
+    "Doubao-Seed-Code",
+    "doubao-seed-code",
+    "doubaoseedcode"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "DeepSeek-V4-Flash-Official",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "DeepSeek-V4-Flash",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "off_peak_discount",
+     "data": {
+      "current": {
+       "discount_type": "none",
+       "before_consumption_rate": 0.2,
+       "consumption_rate": 0.2,
+       "discount": 100
+      },
+      "off_peak": {
+       "before_consumption_rate": 0.2,
+       "after_consumption_rate": 0.1,
+       "discount": 50,
+       "time_windows": [
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+         ],
+         "start_minute": 0,
+         "end_minute": 480
+        },
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+         ],
+         "start_minute": 1320,
+         "end_minute": 1440
+        }
+       ]
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.2
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "DeepSeek-V4-Flash-Official",
+   "key": "DeepSeek-V4-Flash-Official",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.2,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "DeepSeek-V4-Flash",
+    "deepseek-v4-flash",
+    "deepseekv4flash",
+    "DeepSeek-V4-Flash-Official",
+    "deepseek-v4-flash-official",
+    "deepseekv4flashofficial"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "DeepSeek-V4-Pro-Official",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "DeepSeek-V4-Pro",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "off_peak_discount",
+     "data": {
+      "current": {
+       "discount_type": "none",
+       "before_consumption_rate": 0.72,
+       "consumption_rate": 0.72,
+       "discount": 100
+      },
+      "off_peak": {
+       "before_consumption_rate": 0.72,
+       "after_consumption_rate": 0.36,
+       "discount": 50,
+       "time_windows": [
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+         ],
+         "start_minute": 0,
+         "end_minute": 480
+        },
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+         ],
+         "start_minute": 1320,
+         "end_minute": 1440
+        }
+       ]
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.72
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "DeepSeek-V4-Pro-Official",
+   "key": "DeepSeek-V4-Pro-Official",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.72,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "DeepSeek-V4-Pro",
+    "deepseek-v4-pro",
+    "deepseekv4pro",
+    "DeepSeek-V4-Pro-Official",
+    "deepseek-v4-pro-official",
+    "deepseekv4proofficial"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "deepseek-v4.1-flash",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "DeepSeek-V4.1-Flash",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "off_peak_member_discount_18_9",
+     "data": {
+      "current": {
+       "discount_type": "off_peak",
+       "before_consumption_rate": 0.12,
+       "consumption_rate": 0.06,
+       "discount": 50
+      },
+      "member": {
+       "before_consumption_rate": 0.12,
+       "after_consumption_rate": 0.06,
+       "discount": 50
+      },
+      "off_peak": {
+       "before_consumption_rate": 0.12,
+       "after_consumption_rate": 0.06,
+       "discount": 50,
+       "time_windows": [
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "start_minute": 0,
+         "end_minute": 540
+        },
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "start_minute": 720,
+         "end_minute": 840
+        },
+        {
+         "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "start_minute": 1080,
+         "end_minute": 1440
+        },
+        {
+         "weekdays": [
+          6,
+          7
+         ],
+         "start_minute": 0,
+         "end_minute": 1440
+        }
+       ],
+       "time_zone": "Asia/Shanghai"
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.06
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "deepseek-v4.1-flash",
+   "key": "deepseek-v4.1-flash",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.06,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "DeepSeek-V4.1-Flash",
+    "deepseek-v4-1-flash",
+    "deepseekv41flash",
+    "deepseek-v4.1-flash"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "glm-5.2",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GLM-5.2",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.78
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "glm-5.2",
+   "key": "glm-5.2",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.78,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GLM-5.2",
+    "glm-5-2",
+    "glm52",
+    "glm-5.2"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "glm-5.3",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GLM-5.3",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.78
+     }
+    },
+    "discount": {
+     "enable": true,
+     "subKey": "member_discount",
+     "data": {
+      "original_consumption_rate": 0.78,
+      "consumption_rate": 0.39,
+      "member_discount": 50,
+      "is_discount_matched": false
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "glm-5.3",
+   "key": "glm-5.3",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.78,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GLM-5.3",
+    "glm-5-3",
+    "glm53",
+    "glm-5.3"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "glm-5.3-flash",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GLM-5.3-Flash",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.06
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "glm-5.3-flash",
+   "key": "glm-5.3-flash",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.06,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GLM-5.3-Flash",
+    "glm-5-3-flash",
+    "glm53flash",
+    "glm-5.3-flash"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "glm-5.3-flashx",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GLM-5.3-FlashX",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.31
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "glm-5.3-flashx",
+   "key": "glm-5.3-flashx",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.31,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GLM-5.3-FlashX",
+    "glm-5-3-flashx",
+    "glm53flashx",
+    "glm-5.3-flashx"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "kimi-k2.8-preview",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K2.8-Preview",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.98
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "extra_high"
+   },
+   "upstream_key": "kimi-k2.8-preview",
+   "key": "kimi-k2.8-preview",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "extra_high"
+   },
+   "consumption_rate": 0.98,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K2.8-Preview",
+    "kimi-k2-8-preview",
+    "kimik28preview",
+    "kimi-k2.8-preview"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "kimi-k3",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K3",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 1.83
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "extra_high"
+   },
+   "upstream_key": "kimi-k3",
+   "key": "kimi-k3",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "extra_high"
+   },
+   "consumption_rate": 1.83,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K3",
+    "kimi-k3",
+    "kimik3"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "mimo-v2.6-flash",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "MiMo-V2.6-Flash",
+   "prompt_max_tokens": 917504,
+   "context_window_size": {
+    "max": [
+     981504
+    ],
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-sg/model/mimo-light.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-sg/model/mimo-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.06
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 981504,
+      "max_context_list": [
+       981504
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 981504
+   },
+   "reasoning_effort_config": {
+    "support_thinking": false
+   },
+   "upstream_key": "mimo-v2.6-flash",
+   "key": "mimo-v2.6-flash",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 981504,
+   "thinking": {
+    "supported": false,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.06,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "MiMo-V2.6-Flash",
+    "mimo-v2-6-flash",
+    "mimov26flash",
+    "mimo-v2.6-flash"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "mimo-v2.6-pro",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "MiMo-V2.6-Pro",
+   "prompt_max_tokens": 917504,
+   "context_window_size": {
+    "max": [
+     981504
+    ],
+    "default": 200000
+   },
+   "is_new": true,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.ai/obj/trae-ai-sg/model/mimo-light.svg",
+    "dark": "https://lf-cdn.trae.ai/obj/trae-ai-sg/model/mimo-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.15
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 981504,
+      "max_context_list": [
+       981504
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 981504
+   },
+   "reasoning_effort_config": {
+    "support_thinking": false
+   },
+   "upstream_key": "mimo-v2.6-pro",
+   "key": "mimo-v2.6-pro",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 981504,
+   "thinking": {
+    "supported": false,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.15,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "MiMo-V2.6-Pro",
+    "mimo-v2-6-pro",
+    "mimov26pro",
+    "mimo-v2.6-pro"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "minimax-m3",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "MiniMax-M3",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/minimax-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/minimax-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.26
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "upstream_key": "minimax-m3",
+   "key": "minimax-m3",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "code_review_summary",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.26,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "MiniMax-M3",
+    "minimax-m3",
+    "minimaxm3"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "qwen-3.7-plus",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Qwen3.7-Plus",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.25
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "upstream_key": "qwen-3.7-plus",
+   "key": "qwen-3.7-plus",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.25,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Qwen3.7-Plus",
+    "qwen3-7-plus",
+    "qwen37plus",
+    "qwen-3.7-plus",
+    "qwen-3-7-plus"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "qwen3.8-flash",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Qwen3.8-Flash",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.08
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "qwen3.8-flash",
+   "key": "qwen3.8-flash",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.08,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Qwen3.8-Flash",
+    "qwen3-8-flash",
+    "qwen38flash",
+    "qwen3.8-flash"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "qwen3.8-max",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Qwen3.8-Max",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": 200
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 1.5
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 200,
+      "max_turns": 200
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "qwen3.8-max",
+   "key": "qwen3.8-max",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 200000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high",
+     "extra_high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 1.5,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Qwen3.8-Max",
+    "qwen3-8-max",
+    "qwen38max",
+    "qwen3.8-max"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "Doubao-Seed-2.1-Pro",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"open_optimize\":true,\"parallel_tool_calling\":false,\"use_v2_process\":true}",
+   "display_name": "Seed-2.1-Pro-0915",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 256000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "limited_discount",
+     "data": {
+      "current": {
+       "discount_type": "none",
+       "before_consumption_rate": 0.8,
+       "consumption_rate": 0.8,
+       "discount": 100
+      },
+      "limited": {
+       "before_consumption_rate": 0.8,
+       "after_consumption_rate": 0.08,
+       "discount": 10,
+       "end_at": 1792079940
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.8
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 256000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 256000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "Doubao-Seed-2.1-Pro",
+   "key": "Doubao-Seed-2.1-Pro",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 256000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.8,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Seed-2.1-Pro-0915",
+    "seed-2-1-pro-0915",
+    "seed21pro0915",
+    "Doubao-Seed-2.1-Pro",
+    "doubao-seed-2-1-pro",
+    "doubaoseed21pro"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "Doubao-Seed-2.1-Turbo",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"open_optimize\":true,\"parallel_tool_calling\":false,\"use_v2_process\":true}",
+   "display_name": "Seed-2.1-Turbo",
+   "prompt_max_tokens": 224000,
+   "context_window_size": {
+    "max": null,
+    "default": 256000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "subsidy_member_discount",
+     "data": {
+      "current": {
+       "discount_type": "subsidy",
+       "before_consumption_rate": 0.4,
+       "consumption_rate": 0.2,
+       "discount": 50
+      },
+      "member": {
+       "before_consumption_rate": 0.4,
+       "after_consumption_rate": 0.1,
+       "discount": 25
+      },
+      "subsidy": {
+       "before_consumption_rate": 0.4,
+       "after_consumption_rate": 0.2,
+       "discount": 50
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.2
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 256000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 256000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "Doubao-Seed-2.1-Turbo",
+   "key": "Doubao-Seed-2.1-Turbo",
+   "groups": [
+    "chat_v3",
+    "builder_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 256000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.2,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Seed-2.1-Turbo",
+    "seed-2-1-turbo",
+    "seed21turbo",
+    "Doubao-Seed-2.1-Turbo",
+    "doubao-seed-2-1-turbo",
+    "doubaoseed21turbo"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "Doubao-Seed-Evolving",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"open_optimize\":true,\"parallel_tool_calling\":false,\"use_v2_process\":true}",
+   "display_name": "Seed-Evolving",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 256000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/doubao.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "activity_discount": {
+     "enable": true,
+     "subKey": "limited_discount",
+     "data": {
+      "current": {
+       "discount_type": "none",
+       "before_consumption_rate": 0.8,
+       "consumption_rate": 0.8,
+       "discount": 100
+      },
+      "limited": {
+       "before_consumption_rate": 0.8,
+       "after_consumption_rate": 0.08,
+       "discount": 10,
+       "end_at": 1792079940
+      }
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.8
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 256000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 256000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": false
+   },
+   "upstream_key": "Doubao-Seed-Evolving",
+   "key": "Doubao-Seed-Evolving",
+   "groups": [
+    "chat_v3",
+    "builder",
+    "solo_agent"
+   ],
+   "context_window": 256000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": false,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.8,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Seed-Evolving",
+    "seed-evolving",
+    "seedevolving",
+    "Doubao-Seed-Evolving",
+    "doubao-seed-evolving",
+    "doubaoseedevolving"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "step-5-preview",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Step-5-Preview",
+   "prompt_max_tokens": 936000,
+   "context_window_size": {
+    "max": [
+     1000000
+    ],
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/stepfun-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/stepfun-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": 70
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": 1,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.48
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": 1000000,
+      "max_context_list": [
+       1000000
+      ],
+      "dev_turns": 70,
+      "max_turns": 70
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 64000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000,
+    "max": 1000000
+   },
+   "reasoning_effort_config": {
+    "support_thinking": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "upstream_key": "step-5-preview",
+   "key": "step-5-preview",
+   "groups": [
+    "chat_v3",
+    "solo_agent"
+   ],
+   "context_window": 116000,
+   "context_window_max": 1000000,
+   "thinking": {
+    "supported": true,
+    "options": [
+     "light",
+     "high"
+    ],
+    "default_level": "high"
+   },
+   "consumption_rate": 0.48,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Step-5-Preview",
+    "step-5-preview",
+    "step5preview"
+   ],
+   "chat": true,
+   "realm": "cn"
+  },
+  {
+   "name": "deepseek-V3.1",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "DeepSeek-V3.1-Terminus",
+   "prompt_max_tokens": 128000,
+   "context_window_size": {
+    "max": null,
+    "default": 136192
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/deepseek-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 35,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.5
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 136192,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 35,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 8192,
+   "max_turn": 35,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 136192
+   },
+   "upstream_key": "deepseek-V3.1",
+   "key": "deepseek-V3.1",
+   "groups": [
+    "code_reviewer"
+   ],
+   "context_window": 136192,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.5,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "DeepSeek-V3.1-Terminus",
+    "deepseek-v3-1-terminus",
+    "deepseekv31terminus",
+    "deepseek-V3.1",
+    "deepseek-v3-1",
+    "deepseekv31"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "code-review-judge",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "DeepSeek-V3.1-Terminus",
+   "prompt_max_tokens": 96000,
+   "context_window_size": {
+    "max": null,
+    "default": 112000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 1,
+    "info": null
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "cost": {
+     "enable": true,
+     "data": {
+      "manual_usage": 1
+     }
+    },
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 112000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 112000
+   },
+   "upstream_key": "code-review-judge",
+   "key": "code-review-judge",
+   "groups": [
+    "code_reviewer"
+   ],
+   "context_window": 112000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": null,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "DeepSeek-V3.1-Terminus",
+    "deepseek-v3-1-terminus",
+    "deepseekv31terminus",
+    "code-review-judge",
+    "codereviewjudge"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "glm-4.7",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "GLM-4.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/glm-v3-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.38
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "glm-4.7",
+   "key": "glm-4.7",
+   "groups": [
+    "code_review_summary"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.38,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "GLM-4.7",
+    "glm-4-7",
+    "glm47",
+    "glm-4.7"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "refactor_scoper",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "glm-4.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.38
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "refactor_scoper",
+   "key": "refactor_scoper",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.38,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "glm-4.7",
+    "glm-4-7",
+    "glm47",
+    "refactor_scoper",
+    "refactor-scoper",
+    "refactorscoper"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "refactor_finder",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "glm-4.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.38
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "refactor_finder",
+   "key": "refactor_finder",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.38,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "glm-4.7",
+    "glm-4-7",
+    "glm47",
+    "refactor_finder",
+    "refactor-finder",
+    "refactorfinder"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "refactor_planner",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "glm-4.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.38
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "refactor_planner",
+   "key": "refactor_planner",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.38,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "glm-4.7",
+    "glm-4-7",
+    "glm47",
+    "refactor_planner",
+    "refactor-planner",
+    "refactorplanner"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "refactor_incrementer",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "glm-4.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": null,
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.38
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "refactor_incrementer",
+   "key": "refactor_incrementer",
+   "groups": [
+    "refactor"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.38,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "glm-4.7",
+    "glm-4-7",
+    "glm47",
+    "refactor_incrementer",
+    "refactor-incrementer",
+    "refactorincrementer"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "kimi-k2.6",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K2.6",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-light.svg",
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-dark.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": true,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.75
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "video_multimodal": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "kimi-k2.6",
+   "key": "kimi-k2.6",
+   "groups": [
+    "builder_v3"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.75,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K2.6",
+    "kimi-k2-6",
+    "kimik26",
+    "kimi-k2.6"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "kimi-k2.7-code",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Kimi-K2.7-Code",
+   "prompt_max_tokens": 168000,
+   "context_window_size": {
+    "max": null,
+    "default": 200000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "chat_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/kimi-v2-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 200,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.83
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "video_multimodal": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 200000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 200,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 32000,
+   "max_turn": 200,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 200000
+   },
+   "upstream_key": "kimi-k2.7-code",
+   "key": "kimi-k2.7-code",
+   "groups": [
+    "builder_v3",
+    "builder"
+   ],
+   "context_window": 200000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.83,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Kimi-K2.7-Code",
+    "kimi-k2-7-code",
+    "kimik27code",
+    "kimi-k2.7-code"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "minimax-m2.7",
+   "multimodal": false,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "MiniMax-M2.7",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": false,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/minimax-dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/minimax-light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.27
+     }
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "minimax-m2.7",
+   "key": "minimax-m2.7",
+   "groups": [
+    "builder_v3"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.27,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "MiniMax-M2.7",
+    "minimax-m2-7",
+    "minimaxm27",
+    "minimax-m2.7"
+   ],
+   "chat": false,
+   "realm": "cn"
+  },
+  {
+   "name": "qwen-3.6-plus",
+   "multimodal": true,
+   "is_default": false,
+   "custom_config": "{\"apply_file_path\":true,\"enable_invalid_json_hint\":true,\"is_new_pe\":true,\"native_function_call\":true,\"use_v2_process\":true}",
+   "display_name": "Qwen3.6-Plus",
+   "prompt_max_tokens": 100000,
+   "context_window_size": {
+    "max": null,
+    "default": 116000
+   },
+   "is_new": false,
+   "is_beta": null,
+   "core_memory_enable_type": "Disable",
+   "model_type": "reasoning_model",
+   "builder": null,
+   "is_preset": true,
+   "provider": null,
+   "icon": {
+    "dark": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_dark.svg",
+    "light": "https://lf-cdn.trae.com.cn/obj/trae-com-cn/model/qwen_light.svg"
+   },
+   "status": true,
+   "fee_model_level": 2,
+   "max_mode": false,
+   "is_dollar_max": null,
+   "is_max_default": null,
+   "config_source": 1,
+   "selectable": true,
+   "commercial_info": {
+    "manual_usage": 0,
+    "info": ""
+   },
+   "tob_commercial_info": null,
+   "max_turns": {
+    "default": 70,
+    "max": null
+   },
+   "tags": [],
+   "region": null,
+   "thinking_enable": null,
+   "temperature": null,
+   "top_p": null,
+   "top_k": null,
+   "saas_usage": {
+    "max": null,
+    "default": null
+   },
+   "features": {
+    "access": {
+     "data": {
+      "identity_list": [
+       0,
+       5,
+       1,
+       2,
+       3,
+       100
+      ]
+     }
+    },
+    "consumption_rate": {
+     "enable": true,
+     "data": {
+      "rate": 0.26
+     }
+    },
+    "multimodal": {
+     "enable": true
+    },
+    "reasoning": {
+     "enable": true
+    },
+    "context_windows": {
+     "enable": true,
+     "data": {
+      "dev_context": 116000,
+      "max_context": null,
+      "max_context_list": null,
+      "dev_turns": 70,
+      "max_turns": null
+     }
+    }
+   },
+   "feedback_group_link": null,
+   "is_internal_usage_limit": null,
+   "is_l4_repo_restricted": null,
+   "hot_info": null,
+   "max_tokens": 16000,
+   "max_turn": 70,
+   "custom_model_type": null,
+   "enable_show_widget": null,
+   "enable_todo_thought_extract": null,
+   "todo_thought_extract_threshold": null,
+   "reasoning_effort_options": null,
+   "context_window_tokens": {
+    "dev": 116000
+   },
+   "upstream_key": "qwen-3.6-plus",
+   "key": "qwen-3.6-plus",
+   "groups": [
+    "builder_v3"
+   ],
+   "context_window": 116000,
+   "context_window_max": null,
+   "thinking": {
+    "supported": true,
+    "options": [],
+    "default_level": null
+   },
+   "consumption_rate": 0.26,
+   "price": null,
+   "enabled": true,
+   "aliases": [
+    "Qwen3.6-Plus",
+    "qwen3-6-plus",
+    "qwen36plus",
+    "qwen-3.6-plus",
+    "qwen-3-6-plus"
+   ],
+   "chat": false,
+   "realm": "cn"
+  }
+ ]
+}

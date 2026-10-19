@@ -1,0 +1,20 @@
+# 行尾策略（喵喵重工 · 拿铁 / task-11）
+#
+# 背景：本机 core.autocrlf=true 且此前没有 .gitattributes，qoder_catalog.py 工作树
+#       为 CRLF；而 _refresh_catalog.py 以通用换行读入 + newline="\n" 写回
+#       （_refresh_catalog.py:133 读 / :171 写），刷新一次就把该文件归一为 LF，
+#       于是每次刷新都会混入「字节级行尾噪声」。
+# 策略：Python 源码与模型快照统一在**工作树**固定 LF —— 与 _refresh_catalog.py 的
+#       写回行尾一致，从此刷新不会产生行尾噪声；git 清洗后 blob 等价（见验证命令）。
+# 范围：只声明 *.py 与 *.json 两类（模型快照即 JSON），HTML/其它文件不受影响，
+#       属最小侵入；不写 text=auto，避免影响未声明类型的既有行为。
+# 追加 *.sh（同上原因为「别签入 CRLF」的硬性要求）：CRLF 的 shebang 会让
+#       Linux/macOS 报 "bad interpreter: /usr/bin/env bash^M"，脚本根本跑不起来；
+#       且 Windows 侧编辑后 autocrlf 会把 LF 还原成 CRLF，必须在这里钉死。
+*.py text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+# 前端与前端套件（task-UI 同理）：dashboard.html 由 node 套件按字节读，
+# CRLF/LF 漂移会让 md5 指纹比 as-of 时间戳先「变红」，钉死消除噪声
+*.html text eol=lf
+*.js text eol=lf
