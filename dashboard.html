@@ -1645,12 +1645,43 @@ function setUpdateBadge(r){
   const badge = document.getElementById('updateBadge');
   if(!badge) return;
   if(r && r.has_update){
-    badge.textContent = '有新版本 ' + (r.latest || '') + ' → 升级';
+    badge.textContent = '有新版本 ' + (r.latest || '') + ' → 一键更新';
     badge.href = r.url || '#';
+    badge.onclick = function(ev){ ev.preventDefault(); applyUpdate(); };
     badge.style.display = 'inline-block';
   } else {
     badge.style.display = 'none';
     badge.textContent = '';
+  }
+}
+
+async function applyUpdate(){
+  const st = document.getElementById('updateState');
+  const latest = (window.KEY_UPDATE_LATEST || '');
+  if(!confirm('将下载最新版本、备份当前代码并自动重启网关，确定继续？')) return;
+  if(st){ st.textContent = '正在下载更新包…'; st.style.color = 'var(--accent)'; }
+  try{
+    const r = await postJSON('/update/apply', {tag: latest});
+    if(!r || !r.ok) throw new Error((r && r.error) || '更新未启动');
+    toast('更新已下载，正在重启到 ' + (r.to || latest) + '…', 'ok');
+    if(st){ st.textContent = '正在重启，页面会自动刷新…'; }
+    // 等新进程起来；最多 90 秒
+    const target = String(r.to || latest || '').replace(/^v/i, '');
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    for(let i=0;i<60;i++){
+      await sleep(1500);
+      try{
+        const h = await fetch('/health', {cache:'no-store'}).then(x => x.json());
+        if(h && h.ok && (!target || String(h.version || '') === target)){
+          location.reload();
+          return;
+        }
+      }catch(e){ /* 重启窗口内连接拒绝，继续等 */ }
+    }
+    if(st){ st.textContent = '更新已应用但重启响应超时，请手动刷新或查看 update.log'; st.style.color = 'var(--warn)'; }
+  }catch(e){
+    if(st){ st.textContent = '更新失败：' + e.message; st.style.color = 'var(--bad)'; }
+    toast('更新失败：' + e.message, 'bad');
   }
 }
 
@@ -1669,17 +1700,20 @@ async function loadUpdateState(force, btn){
       state.style.color = 'var(--warn)';
       setUpdateBadge(null);
     } else if(r.has_update){
+      window.KEY_UPDATE_LATEST = r.latest || '';
       state.innerHTML = '发现新版本 <b style="color:var(--accent)">' + esc(r.latest) + '</b>'
         + '（当前 ' + esc(r.current) + '）';
       state.style.color = 'var(--accent)';
-      if(actions && r.url){
-        actions.innerHTML = '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" '
-          + 'style="color:var(--accent);text-decoration:underline">前往 Releases 下载升级 →</a>';
+      if(actions){
+        actions.innerHTML = '<button class="mini" style="margin-right:8px" onclick="applyUpdate()">一键更新到 ' + esc(r.latest) + '</button>'
+          + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" '
+            + 'style="color:var(--accent);text-decoration:underline;font-size:12px">Releases →</a>' : '');
       }
       setUpdateBadge(r);      // 顶部徽标提醒升级
     } else {
       state.textContent = '已是最新版本（' + esc(r.current) + (r.latest ? (' · 最新 ' + esc(r.latest)) : '') + '）';
       state.style.color = '#26bb82';
+      window.KEY_UPDATE_LATEST = '';
       setUpdateBadge(null);
     }
   }catch(e){

@@ -1,3 +1,31 @@
+## [1.1.0] - 2026-10-20
+
+### ✨ 新增功能
+
+- 看板自动检测 GitHub 最新 Release，有更新时顶部显示「有新版本 → 一键更新」。
+- 设置页「运行信息」增加一键更新按钮，展示当前版本与目标版本。
+- 一键更新流程：下载 release tarball → 安全解压 → 自动备份 → 替换代码 → 自动重启网关。
+- 更新完成后页面自动轮询 `/health`，版本一致后自动刷新。
+- 更新失败时保留 `update.log` 与 `update-backups/update-*.tar.gz`，可手动回滚。
+- Docker 部署检测：容器内拒绝自更新，提示使用 `docker compose pull`。
+
+### 🐛 问题修复
+
+- 修复 GitHub tarball 下载 `415 Unsupported Media Type`：改用 `application/vnd.github+json`。
+- 修复更新检查没有返回 `tarball_url`，导致无法一键下载的问题。
+- 修复看板顶部更新徽标只能跳 Releases、不能直接更新的问题。
+
+### 🎨 体验优化
+
+- 更新按钮显示目标版本号；下载、重启、完成都有状态提示。
+- 更新包解压排除 `accounts/`、`usage/`、`.git/`、`update-backups/`，不会碰账号数据。
+- 更新前自动生成 tar.gz 备份，更新日志写入 `update.log`。
+
+### ⚠️ 其他变更
+
+- 版本号升级到 **1.1.0**。
+- 更新源固定为 `shuishuipingan/trae2api-hub` 的 GitHub Release。
+
 # Changelog
 
 所有重要变更都记录在这里。版本号遵循 [Semantic Versioning](https://semver.org/)。
