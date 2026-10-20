@@ -30,6 +30,9 @@ trae_client 存在时优先使用它（协议客户端），缺失时回落到�
 """
 import argparse
 import hashlib
+import shutil
+import tarfile
+import tempfile
 from collections import deque
 import re
 import json
@@ -46,6 +49,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import subprocess
 
 import trae_accounts
 import trae_agents
@@ -66,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.0.0"
+VERSION = "1.1.1"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -3755,7 +3759,7 @@ def requested_effort(payload):
 # ---------------------------------------------------------------------------
 UPDATE_CHECK_URL = ("https://api.github.com/repos/shuishuipingan/"
                     "trae2api-hub/releases/latest")
-UPDATE_CHECK_TTL = 6 * 3600
+UPDATE_CHECK_TTL = 300
 _update_cache = {"at": 0.0, "data": None}
 
 
@@ -3786,8 +3790,8 @@ def check_for_update(force=False):
     if cached and not force and now - _update_cache.get("at", 0) < UPDATE_CHECK_TTL:
         return cached
     info = {"ok": False, "current": VERSION, "latest": "", "has_update": False,
-            "url": "", "published_at": "", "name": "", "checked_at": int(now),
-            "error": ""}
+            "url": "", "tarball_url": "", "published_at": "", "name": "",
+            "checked_at": int(now), "error": ""}
     try:
         url = validate_public_http_url(UPDATE_CHECK_URL)
         req = urllib.request.Request(url, headers={
@@ -3801,6 +3805,7 @@ def check_for_update(force=False):
             "ok": True,
             "latest": tag,
             "url": str(data.get("html_url") or ""),
+            "tarball_url": str(data.get("tarball_url") or ""),
             "published_at": str(data.get("published_at") or ""),
             "name": str(data.get("name") or ""),
             "has_update": bool(tag) and version_tuple(tag) > version_tuple(VERSION),
@@ -3809,6 +3814,195 @@ def check_for_update(force=False):
         info["error"] = str(exc)[:160]
     _update_cache.update({"at": now, "data": info})
     return info
+
+
+# ---------------------------------------------------------------------------
+# 一键更新：下载 GitHub release tarball -> staging -> 备份 -> 退出并重启
+# ---------------------------------------------------------------------------
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+UPDATE_REPO = "shuishuipingan/trae2api-hub"
+UPDATE_LOCK = threading.Lock()
+_UPDATE_SKIP = {"accounts", "usage", ".git", "update-backups", "__pycache__",
+                ".pytest_cache", "_update_staging", "update-staging"}
+
+
+def _update_is_docker():
+    return os.path.exists("/.dockerenv") or os.environ.get(
+        "TRAE_UPDATE_DOCKER", "").lower() in ("1", "true", "yes")
+
+
+def _download_update(url, dest, max_bytes=80 * 1024 * 1024):
+    url = validate_public_http_url(url)
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "trae2api-hub-updater",
+    })
+    with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as fh:
+        total = 0
+        while True:
+            chunk = resp.read(1024 * 256)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise RuntimeError("update archive is too large")
+            fh.write(chunk)
+    return dest
+
+
+def _extract_update(archive, dest):
+    """Safely extract a GitHub tarball into dest (no absolute/.. paths)."""
+    os.makedirs(dest, exist_ok=True)
+    with tarfile.open(archive, "r:*") as tar:
+        for member in tar.getmembers():
+            name = member.name.replace("\\", "/")
+            parts = [p for p in name.split("/") if p not in ("", ".")]
+            if not parts or any(p == ".." for p in parts):
+                continue
+            target = os.path.join(dest, *parts)
+            if member.isdir():
+                os.makedirs(target, exist_ok=True)
+                continue
+            if not member.isfile():
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            src = tar.extractfile(member)
+            if src is None:
+                continue
+            with src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+    # GitHub tarball has one top-level directory; find the real project root.
+    candidates = [os.path.join(dest, n) for n in os.listdir(dest)]
+    roots = [c for c in candidates if os.path.isfile(os.path.join(c, "trae_proxy.py"))]
+    return roots[0] if roots else dest
+
+
+def _copy_update_tree(src, dst):
+    """Copy archive project files over dst, never touching runtime data."""
+    copied = 0
+    for name in os.listdir(src):
+        if name in _UPDATE_SKIP or name.startswith("_self_update"):
+            continue
+        source = os.path.join(src, name)
+        target = os.path.join(dst, name)
+        if os.path.isdir(source):
+            if os.path.islink(source):
+                continue
+            shutil.copytree(source, target, dirs_exist_ok=True)
+            copied += 1
+        else:
+            shutil.copy2(source, target)
+            copied += 1
+    return copied
+
+
+def _make_update_backup(root):
+    out_dir = os.path.join(root, "update-backups")
+    os.makedirs(out_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    path = os.path.join(out_dir, "update-%s.tar.gz" % stamp)
+    with tarfile.open(path, "w:gz") as tar:
+        for name in sorted(os.listdir(root)):
+            if name in _UPDATE_SKIP or name.startswith("_self_update"):
+                continue
+            tar.add(os.path.join(root, name), arcname=name)
+    return path
+
+
+def _write_update_runner(root, staging, argv, log_path):
+    """Write a detached helper; parent exits 0.8s after returning the API reply."""
+    payload = {
+        "root": root,
+        "staging": staging,
+        "argv": list(argv or []),
+        "log": log_path,
+    }
+    fd, path = tempfile.mkstemp(prefix="trae2api-update-", suffix=".py")
+    os.close(fd)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(
+            "import json, os, shutil, subprocess, sys, time\n"
+            "cfg=json.loads(%r)\n"
+            "time.sleep(2.0)\n"
+            "root=cfg['root']; staging=cfg['staging']; log=cfg['log']\n"
+            "try:\n"
+            "    for name in os.listdir(staging):\n"
+            "        if name in ('accounts','usage','.git','update-backups') "
+            "or name.startswith('_self_update'): continue\n"
+            "        s=os.path.join(staging,name); d=os.path.join(root,name)\n"
+            "        if os.path.isdir(s): shutil.copytree(s,d,dirs_exist_ok=True)\n"
+            "        else: shutil.copy2(s,d)\n"
+            "    shutil.rmtree(staging, ignore_errors=True)\n"
+            "    fh=open(log,'a',encoding='utf-8')\n"
+            "    fh.write('\\\\n[update] files applied at '+time.strftime('%%Y-%%m-%%d %%H:%%M:%%S')+'\\\\n')\n"
+            "    fh.flush()\n"
+            "    flags=0\n"
+            "    if os.name=='nt': flags=0x00000008 | 0x00000200\n"
+            "    subprocess.Popen([sys.executable, os.path.join(root,'trae_proxy.py')]+cfg['argv'],"
+            "cwd=root,stdout=fh,stderr=fh,stdin=subprocess.DEVNULL,"
+            "creationflags=flags, start_new_session=(os.name!='nt'))\n"
+            "    fh.write('[update] restarted\\\\n'); fh.flush()\n"
+            "except Exception as exc:\n"
+            "    try:\n"
+            "        open(log,'a',encoding='utf-8').write('\\\\n[update] FAILED: %%r\\\\n' %% (exc,))\n"
+            "    except Exception: pass\n"
+            % json.dumps(payload, ensure_ascii=False)
+        )
+    return path
+
+
+def apply_project_update(tag="", tarball_url=""):
+    """Stage a release and return restart metadata; caller exits shortly after."""
+    if _update_is_docker():
+        raise RuntimeError("Docker 部署请执行 docker compose pull / up -d，不能容器内自更新")
+    if not UPDATE_LOCK.acquire(False):
+        raise RuntimeError("已有更新任务在执行")
+    try:
+        info = check_for_update(force=True)
+        if not info.get("has_update"):
+            raise RuntimeError("当前已是最新版本：%s" % info.get("current"))
+        latest = str(info.get("latest") or tag or "")
+        url = str(info.get("tarball_url") or tarball_url or "")
+        if not url:
+            url = "https://api.github.com/repos/%s/tarball/%s" % (UPDATE_REPO, latest)
+        archive = tempfile.mktemp(prefix="trae2api-release-", suffix=".tar.gz")
+        _download_update(url, archive)
+        extract_dir = tempfile.mkdtemp(prefix="trae2api-update-extract-")
+        source = _extract_update(archive, extract_dir)
+        staging = tempfile.mkdtemp(prefix="trae2api-update-stage-")
+        shutil.copytree(source, staging, dirs_exist_ok=True)
+        backup = _make_update_backup(PROJECT_ROOT)
+        log_path = os.path.join(PROJECT_ROOT, "update.log")
+        argv = list(sys.argv[1:])
+        runner = _write_update_runner(PROJECT_ROOT, staging, argv, log_path)
+        flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0
+        subprocess.Popen(
+            [sys.executable, runner],
+            cwd=PROJECT_ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+            start_new_session=(os.name != "nt"),
+            close_fds=True,
+        )
+        # flush the HTTP response, then release the port for the helper.
+        threading.Timer(0.8, lambda: os._exit(0)).start()
+        return {
+            "ok": True,
+            "restarting": True,
+            "from": VERSION,
+            "to": latest,
+            "backup": os.path.basename(backup),
+            "log": os.path.basename(log_path),
+        }
+    finally:
+        try:
+            if 'archive' in locals() and os.path.exists(archive):
+                os.remove(archive)
+        except Exception:
+            pass
+        UPDATE_LOCK.release()
 
 
 def is_deepseek_model(model="", model_key=""):
@@ -10206,6 +10400,22 @@ class Handler(BaseHTTPRequestHandler):
         self.realm_reason = ""
         self.degraded_from = ""
         path = self.path.split("?")[0]
+        if path == "/update/apply":
+            if not self._panel_ok():
+                return self._error(401, "panel password required",
+                                   "invalid_request_error")
+            payload = self._payload_or_error()
+            if payload is None:
+                return
+            try:
+                result = apply_project_update(
+                    tag=str(payload.get("tag") or ""),
+                    tarball_url=str(payload.get("tarball_url") or ""))
+                return self._json(200, result)
+            except RuntimeError as exc:
+                return self._error(409, str(exc), "update_error")
+            except Exception as exc:
+                return self._error(500, "update failed: %s" % exc)
         if path == "/config/restore":
             if not self._panel_ok():
                 return self._error(401, "panel password required",

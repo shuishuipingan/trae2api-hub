@@ -6,6 +6,11 @@ accounts/*
 # 运行时数据：请求流水与指标快照
 usage/
 
+# 一键更新产物：备份与日志
+update-backups/
+update.log
+update-staging/
+
 # ---- Python 运行产物 ----
 __pycache__/
 *.pyc
