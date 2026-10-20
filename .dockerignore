@@ -20,6 +20,9 @@ python/
 # 运行期状态：凭证与用量绝不进镜像
 accounts/
 usage/
+update-backups/
+update.log
+update-staging/
 _acc/
 _use/
 
