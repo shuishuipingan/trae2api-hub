@@ -3422,7 +3422,7 @@ async function startDashboard(){
   if(PANEL_READY) return;
   PANEL_READY = true;
   await loadSettings();
-  loadUpdateState();          // 自动检查新版本（不阻塞首屏，失败静默）
+  loadUpdateState(true);      // 自动检查新版本（强制刷新，避免缓存挡住新 Release）
   await initRealm();
   await loadAccounts();
   await loadModels();

@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -3759,7 +3759,7 @@ def requested_effort(payload):
 # ---------------------------------------------------------------------------
 UPDATE_CHECK_URL = ("https://api.github.com/repos/shuishuipingan/"
                     "trae2api-hub/releases/latest")
-UPDATE_CHECK_TTL = 6 * 3600
+UPDATE_CHECK_TTL = 300
 _update_cache = {"at": 0.0, "data": None}
 
 
