@@ -286,6 +286,18 @@ POST /config/restore
 
 ---
 
+## 🔄 版本检测与一键更新
+
+- 看板加载时强制检查 GitHub 最新 Release；有更新时顶部出现「有新版本 → 一键更新」。
+- 设置 → 运行信息也会显示当前版本、最新版本与「一键更新」按钮。
+- 点击后自动：下载 release tarball → 安全解压 → 备份到 `update-backups/` → 替换代码 → 重启网关。
+- 页面轮询 `/health`，检测到新版本后自动刷新；进度与错误写入 `update.log`。
+- 更新过程不会覆盖 `accounts/`、`usage/`、`.git/`、`update-backups/`。
+
+回滚：停止网关，解压最近的 `update-backups/update-*.tar.gz` 覆盖项目目录，再重新启动。
+
+> Docker 部署不支持容器内自更新（重建后文件会丢失）。请使用 `docker compose pull && docker compose up -d`。
+
 ## 🐳 Docker 说明
 
 - 镜像内监听 `0.0.0.0:8791`
