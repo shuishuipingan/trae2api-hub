@@ -2421,6 +2421,10 @@ function accountEntitlementText(a){
   const adv = quota.advanced_model_request_limit;
   const fast = quota.premium_model_fast_request_limit;
   const bits = [];
+  const cr = (a.credits && typeof a.credits === 'object') ? a.credits : {};
+  if(cr.checkin || cr.checked_in){
+    bits.push('<b style="color:var(--accent2)">积分 ' + fmt(cr.checkin || 0) + '</b>');
+  }
   if(plan) bits.push('<b style="color:var(--accent2)">' + esc(plan) + '</b>');
   if(adv != null) bits.push('高级模型 ' + fmt(adv) + ' 次');
   if(fast != null) bits.push('快速 ' + fmt(fast) + ' 次');
@@ -2534,9 +2538,13 @@ async function fetchCredits(btn){
   const currentView = (window.VIEW_REALM || "cn");
   const viewName = currentView === 'cn' ? '国内版' : '国际版';
   try{
-    await postJSON('/tasks/run', {});
-    await Promise.all([loadAccounts(), loadGrowthTasks({force:true}), refresh()]);
-    toast('已刷新当前' + viewName + '账号的权益/用量', 'ok');
+    const r = await postJSON('/accounts/credits/fetch', {realm: currentView});
+    await Promise.all([loadAccounts(), refresh()]);
+    const n = (r.results || []).filter(x => x.ok).length;
+    const bad = (r.results || []).filter(x => !x.ok);
+    toast('已刷新当前' + viewName + '账号权益/积分（成功 ' + n + ' 个'
+      + (bad.length ? '，失败 ' + bad.length + ' 个：' + (bad[0].error || '上游错误') : '') + '）',
+      bad.length ? 'warn' : 'ok');
   }catch(e){
     toast('刷新权益失败: ' + e.message, 'bad');
   }finally{

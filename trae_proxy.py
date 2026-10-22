@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -1284,22 +1284,102 @@ API_KEY = None
 SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
-def account_fetch_credits(account):
-    """查余额：账号域方法名可能变（fetch_credits / refresh_entitlement）。
+def account_credit_view(account):
+    """Normalize plan + check-in credits + quota for dashboard/API."""
+    ent = getattr(account, "entitlement", None) or {}
+    usage = ent.get("ent_usage") if isinstance(ent.get("ent_usage"), dict) else {}
+    packs = usage.get("user_entitlement_pack_list") or []
+    pack = {}
+    if isinstance(packs, list):
+        for item in packs:
+            if isinstance(item, dict):
+                pack = item
+                break
+    plan = str(pack.get("display_desc") or "")
+    quota = pack.get("quota") if isinstance(pack.get("quota"), dict) else {}
+    used = pack.get("usage") if isinstance(pack.get("usage"), dict) else {}
+    try:
+        limit = int(quota.get("advanced_model_request_limit") or 0)
+        consumed = int(used.get("advanced_model_request_usage") or 0)
+    except (TypeError, ValueError):
+        limit, consumed = 0, 0
+    checkin = (getattr(account, "extra", {}) or {}).get("checkin") or {}
+    try:
+        checkin_credits = int(checkin.get("credits") or 0)
+    except (TypeError, ValueError):
+        checkin_credits = 0
+    return {
+        "checkin": checkin_credits,
+        "checkin_at": checkin.get("at") or "",
+        "checked_in": bool(checkin.get("checked_in")),
+        "plan": plan,
+        "remain": max(0, limit - consumed),
+        "limit": limit,
+        "used": consumed,
+        "updated_at": getattr(account, "usage_updated_at", 0) or 0,
+        "source": "entitlement+checkin",
+    }
 
-    返回 dict（至少含 ok）。缺失实现时返回 ok=False + 明确原因，绝不抛。
+
+def account_fetch_credits(account):
+    """Refresh upstream usage/entitlement + CN check-in credits, then persist.
+
+    The old Account.fetch_credits() only read the local snapshot, so clicking
+    “刷新权益” never actually talked to Trae. This function is the single
+    upstream refresh path used by /accounts/credits and the dashboard button.
     """
-    for name in ("fetch_credits", "refresh_credits", "refresh_entitlement"):
-        fn = getattr(account, name, None)
+    errors = []
+    raw_usage = raw_ent = None
+    client = _trae_client
+    if client is not None:
+        fn = getattr(client, "fetch_usage", None)
         if callable(fn):
             try:
-                res = fn()
+                raw_usage = fn(account, realm=getattr(account, "realm", None))
             except Exception as exc:
-                return {"ok": False, "error": str(exc)[:200]}
-            if isinstance(res, dict):
-                return res
-            return {"ok": bool(res)}
-    return {"ok": False, "error": "该账号实现未提供余额查询方法"}
+                errors.append("fetch_usage: %s" % str(exc)[:160])
+        fn = getattr(client, "fetch_entitlement", None)
+        if callable(fn):
+            try:
+                raw_ent = fn(account, realm=getattr(account, "realm", None))
+            except Exception as exc:
+                errors.append("fetch_entitlement: %s" % str(exc)[:160])
+        # CN check-in credits are user-visible “积分”; INTL has no such endpoint.
+        if str(getattr(account, "realm", "")) == "cn":
+            fn = getattr(client, "checkin_status", None)
+            if callable(fn):
+                try:
+                    st = fn(account, realm="cn")
+                    if isinstance(st, dict) and st.get("credits") is not None:
+                        extra = getattr(account, "extra", None)
+                        if not isinstance(extra, dict):
+                            extra = {}
+                            account.extra = extra
+                        extra["checkin"] = {
+                            "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "checked_in": bool(st.get("checked_in")),
+                            "credits": int(st.get("credits") or 0),
+                            "earned_credit": 0,
+                        }
+                except Exception as exc:
+                    errors.append("checkin_status: %s" % str(exc)[:160])
+    if isinstance(raw_usage, dict):
+        account.usage = raw_usage
+    if isinstance(raw_ent, dict):
+        account.entitlement = raw_ent
+    account.usage_updated_at = time.time()
+    try:
+        account.save()
+    except Exception as exc:
+        errors.append("save: %s" % str(exc)[:160])
+    view = account_credit_view(account)
+    ok = bool(raw_usage or raw_ent or view.get("checkin") or view.get("plan"))
+    return {"ok": ok, "credits": view, "usage": account.usage,
+            "entitlement": account.entitlement,
+            "updated_at": account.usage_updated_at,
+            "errors": errors}
+
+
 
 
 def account_fetch_plan(account):
@@ -1390,9 +1470,13 @@ def credits_summary():
     total_remain = 0
     accounts = list(POOL.accounts) if POOL else []
     for a in accounts:
-        cred = getattr(a, "credits", None)
-        if not isinstance(cred, dict):
-            cred = {}
+        try:
+            view = a._credit_view(a)
+        except Exception:
+            view = {}
+        cred = dict(view)
+        cred["size"] = view.get("limit", 0)
+        cred["updated_at"] = view.get("updated_at", 0)
         realm = getattr(a, "realm", "") or ""
         remain = cred.get("remain")
         # issue #39：团队账号的套餐 may 用满而共享池仍有余额——汇总按有效余额，
@@ -1408,6 +1492,8 @@ def credits_summary():
             if isinstance(cred.get("shared"), dict) else None,
             "credits_used": cred.get("used"),
             "credits_size": cred.get("size"),
+            "checkin": cred.get("checkin"),
+            "checkin_at": cred.get("checkin_at"),
             # 登记时间：credits.updated_at（fetch_credits 写入），不是文件 mtime。
             "registered_at": cred.get("updated_at"),
         })
@@ -9126,12 +9212,7 @@ class Handler(BaseHTTPRequestHandler):
                 res = account_fetch_credits(a)
                 # 新账号契约：用量/权益快照由 pool.note_usage 统一登记，
                 # 手动查询成功后同步一次即可（不再有 mark_manual）。
-                if isinstance(res, dict) and res.get("ok") and POOL is not None \
-                        and hasattr(POOL, "note_usage"):
-                    try:
-                        POOL.note_usage(a.uid, entitlement=res)
-                    except Exception:
-                        pass
+
             return self._json(200, {"accounts": account_views(),
                                     "skipped": skipped,
                                     "refreshed": len(targets)})
@@ -9647,9 +9728,10 @@ class Handler(BaseHTTPRequestHandler):
                 res = account_fetch_credits(account)
                 account_fetch_plan(account)
                 results.append({"uid": account.uid, "ok": res.get("ok", False),
-                                "credits": account.credits,
+                                "credits": res.get("credits") or account_credit_view(account),
                                 "plan": account.plan,
-                                "error": res.get("error", "")})
+                                "errors": res.get("errors") or [],
+                                "error": "; ".join(res.get("errors") or [])[:200]})
             return self._json(200, {"results": results, "skipped": skipped,
                                     "accounts": account_views()})
         if path == "/models/discover":
