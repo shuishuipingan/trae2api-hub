@@ -1797,10 +1797,20 @@ function renderAvailableModels(){
   const tb = document.querySelector('#modelsTable tbody');
   if(!tb) return;
   const countEm = document.getElementById('availModelCount');
-  const list = Array.isArray(MODELS_DATA) ? MODELS_DATA : [];
+  const rawList = Array.isArray(MODELS_DATA) ? MODELS_DATA : [];
+  const seenModels = new Set();
+  const list = rawList.filter(m => {
+    const key = String((m && (m.upstream_key || m.id)) || '').toLowerCase();
+    if(!key) return true;
+    if(seenModels.has(key)) return false;
+    seenModels.add(key);
+    return true;
+  });
   if(countEm){
     const avail = list.filter(m => m.available !== false && m.enabled !== false).length;
-    countEm.textContent = '(共 ' + list.length + ' 个 · 可用 ' + avail + ' 个)';
+    const clientOnly = list.filter(m => m.access === 'client_catalog' || (m.catalog_only === true && m.upgrade_required !== true)).length;
+    countEm.textContent = '(共 ' + list.length + ' 个 · 网关可用 ' + avail + ' 个'
+      + (clientOnly ? ' · 仅 App ' + clientOnly + ' 个' : '') + ')';
   }
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="8" class="empty">暂无模型目录</td></tr>';
@@ -1813,13 +1823,16 @@ function renderAvailableModels(){
       : (m.realm === 'intl' ? '<span class="realm-badge-intl">国际版</span>' : '');
     const catalogOnly = (m.catalog_only === true) || (m.catalog_available === false);
     const upgrade = m.upgrade_required === true;
+    const clientOnly = (m.access === 'client_catalog') && !upgrade;
     const availBadge = avail
       ? '<span class="badge ok" style="font-size:11px">可用</span>'
       : (upgrade
           ? '<span class="badge warn" style="font-size:11px" title="' + esc(m.disabled_reason || '需要升级套餐') + '">升级</span>'
-          : (catalogOnly
-              ? '<span class="badge warn" style="font-size:11px" title="' + esc(m.disabled_reason || '当前账号的 model_list 未返回该模型') + '">目录</span>'
-              : '<span class="badge off" style="font-size:11px">未上线</span>'));
+          : (clientOnly
+              ? '<span class="badge warn" style="font-size:11px" title="' + esc(m.disabled_reason || '官方 App 目录可用，网关 raw_chat 未接入') + '">仅 App</span>'
+              : (catalogOnly
+                  ? '<span class="badge warn" style="font-size:11px" title="' + esc(m.disabled_reason || '目录保留，网关未验证') + '">目录</span>'
+                  : '<span class="badge off" style="font-size:11px">未上线</span>')));
     const excl = (m.realm_exclusive === 'intl' || m.realm_exclusive === 'cn')
       ? ' <span class="' + (m.realm_exclusive === 'intl' ? 'realm-badge-intl' : 'realm-badge-cn')
         + '" style="font-size:10px">仅' + (m.realm_exclusive === 'intl' ? '国际版' : '国内版') + '</span>' : '';
@@ -1852,7 +1865,7 @@ function renderAvailableModels(){
       idLines.push('<div class="mono" style="font-size:10px;color:var(--dim)">key: ' + esc(m.upstream_key) + '</div>');
     if(m.model_type)
       idLines.push('<div style="font-size:10px;color:var(--dim);margin-top:2px">' + esc(m.model_type) + '</div>');
-    return '<tr' + (avail ? '' : ' style="opacity:.62"') + '>'
+    return '<tr' + (avail || clientOnly ? '' : ' style="opacity:.62"') + '>'
       + '<td style="text-align:left">' + idLines.join('') + '</td>'
       + '<td style="text-align:center">' + availBadge + '<div style="margin-top:3px">' + realmBadge + '</div></td>'
       + '<td style="text-align:center">' + (function(){
