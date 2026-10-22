@@ -1,7 +1,7 @@
 # Trae2API-Hub — 国际版、国内版双区多账号网关中枢
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Release-v1.1.4-2496ED?style=flat-square" alt="Version 1.0.0">
+  <img src="https://img.shields.io/badge/Release-v1.1.5-2496ED?style=flat-square" alt="Version 1.0.0">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg?style=flat-square" alt="Python">
   <img src="https://img.shields.io/badge/API-OpenAI_Compatible-412991?style=flat-square" alt="OpenAI API">
   <img src="https://img.shields.io/badge/Dual_Realm-CN_%26_Intl-0DBD8B?style=flat-square" alt="Dual Realm">
@@ -12,7 +12,7 @@
 
 **Trae2API-Hub** 把 Trae **国际版**与**国内版**的原生模型服务封装成标准 **OpenAI 兼容 API**，支持 Chat Completions、Responses（Codex / Claude Code）与 Anthropic Messages。项目提供双区账号池、自动换区、模型目录、流式推理、工具调用，以及一套完整的 Web 监控看板。
 
-> **1.1.4 的核心变化：账号页顶部直接显示总可用积分 899.61，并保留双区账号池。** 看板现在直接读取 Trae v2 entitlement 的 usage_summary，并同时展示国内版与国际版账号。 看板检测到新版本后会显示顶部徽标与「一键更新」按钮，点击即可下载、备份、替换并自动重启。
+> **1.1.5 的核心变化：模型状态更准确。** 官方客户端可用、但网关 raw_chat 未接入的模型标为「仅 App」，不再误显示为「不可用」；同 Key 模型行自动去重。 看板现在直接读取 Trae v2 entitlement 的 usage_summary，并同时展示国内版与国际版账号。 看板检测到新版本后会显示顶部徽标与「一键更新」按钮，点击即可下载、备份、替换并自动重启。
 >
 > **1.0.0 的基础：国际版不再需要 Trae 桌面版。**  
 > 修复了旧版本头导致的 `4015` 和错误鉴权方案导致的 `4023`，国际版现在使用当前客户端版本头 + `Authorization: Bearer <access_token>` 直接调用官方 `llm_raw_chat`。**Docker / Linux 无桌面环境可以直接运行**，不需要启动 Trae、调试端口或 `websocket-client`。

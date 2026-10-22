@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -3175,7 +3175,11 @@ def model_entry(mid, meta, realm=None):
         item["available"] = bool(catalog_available) and bool(pool_available)
         if catalog_available is False:
             item["catalog_only"] = True
-            item["disabled_reason"] = "当前账号的 model_list 未返回该模型（目录保留，套餐/账号可用后再启用）"
+            item["access"] = "client_catalog"
+            item["disabled_reason"] = (
+                "官方客户端目录中存在该模型；但当前账号的 raw_chat model_list "
+                "未返回它。网关暂未接入 Agent 通道，直接请求会返回 4023；"
+                "这不等于账号套餐不可用。")
     if realm == "intl" and mid in INTL_UNAVAILABLE_MODELS:
         item["available"] = False
         item["catalog_only"] = True
