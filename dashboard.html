@@ -701,7 +701,7 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
   <div class="cards" id="cards"></div>
 
   <section>
-    <h2>账号<em id="acctCount"></em></h2>
+    <h2>账号<em id="acctCount"></em><span id="acctTotalCredits" style="margin-left:12px;font-size:12px;color:var(--accent2);font-weight:700"></span></h2>
     <div class="toolbar" style="align-items:center">
     <button class="sec" id="btnCheckin" onclick="doCheckin(this)">每日签到</button>
     <button class="sec" onclick="fetchCredits(this)">刷新权益</button>
@@ -2498,6 +2498,12 @@ function renderAccounts(){
   const usable = list.filter(a => a.enabled).length;
   document.getElementById('acctCount').textContent =
     list.length ? ('（全部共 ' + list.length + ' 个，启用 ' + usable + ' 个）') : '';
+  const totalCredits = list.reduce((sum, a) => {
+    const c = (a.credits && typeof a.credits === 'object') ? a.credits : {};
+    return sum + (Number(c.remain) || 0);
+  }, 0);
+  const creditEl = document.getElementById('acctTotalCredits');
+  if(creditEl) creditEl.textContent = list.length ? ('总可用积分 ' + fmt(Math.round(totalCredits * 100) / 100)) : '';
   if(!list.length){
     box.innerHTML =
       '<div style="text-align:center;padding:30px 16px">'

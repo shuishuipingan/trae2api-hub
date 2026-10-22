@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -1490,7 +1490,9 @@ def credits_summary():
         remain = cred.get("remain")
         # issue #39：团队账号的套餐 may 用满而共享池仍有余额——汇总按有效余额，
         # 同时保留原始 remain 便于核对（两者都会出现在行里）。
-        eff = trae_accounts.effective_remain(cred)
+        # 新 v2 usage_summary 的 remain 是小数（如 899.61）；不要走
+        # effective_remain 的 int() 截断，否则汇总会丢两位小数。
+        eff = remain if isinstance(remain, (int, float)) and not isinstance(remain, bool) else trae_accounts.effective_remain(cred)
         rows.append({
             "uid": getattr(a, "uid", "") or "",
             "nickname": account_label(a),
