@@ -1569,6 +1569,35 @@ class Account(object):
 
     # -- 脱敏视图 --------------------------------------------------------
     @staticmethod
+    def _credit_view(account):
+        ent = getattr(account, "entitlement", None) or {}
+        usage = ent.get("ent_usage") if isinstance(ent.get("ent_usage"), dict) else {}
+        packs = usage.get("user_entitlement_pack_list") or []
+        pack = next((x for x in packs if isinstance(x, dict)), {}) if isinstance(packs, list) else {}
+        quota = pack.get("quota") if isinstance(pack.get("quota"), dict) else {}
+        used = pack.get("usage") if isinstance(pack.get("usage"), dict) else {}
+        try:
+            limit = int(quota.get("advanced_model_request_limit") or 0)
+            consumed = int(used.get("advanced_model_request_usage") or 0)
+        except (TypeError, ValueError):
+            limit, consumed = 0, 0
+        checkin = (getattr(account, "extra", {}) or {}).get("checkin") or {}
+        try:
+            credits = int(checkin.get("credits") or 0)
+        except (TypeError, ValueError):
+            credits = 0
+        return {
+            "checkin": credits,
+            "checkin_at": checkin.get("at") or "",
+            "checked_in": bool(checkin.get("checked_in")),
+            "plan": str(pack.get("display_desc") or ""),
+            "remain": max(0, limit - consumed),
+            "limit": limit,
+            "used": consumed,
+            "updated_at": getattr(account, "usage_updated_at", 0) or 0,
+        }
+
+    @staticmethod
     def _intl_quota_state(quota):
         if not isinstance(quota, dict):
             return "unknown"
@@ -1644,6 +1673,7 @@ class Account(object):
             "updatedAt": self.updated_at,
             "usage": self.usage,
             "entitlement": self.entitlement,
+            "credits": self._credit_view(self),
             "intlQuota": (self.extra or {}).get("intl_quota"),
             "intlQuotaState": self._intl_quota_state(
                 (self.extra or {}).get("intl_quota")),
