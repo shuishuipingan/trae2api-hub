@@ -1576,11 +1576,19 @@ class Account(object):
         pack = next((x for x in packs if isinstance(x, dict)), {}) if isinstance(packs, list) else {}
         quota = pack.get("quota") if isinstance(pack.get("quota"), dict) else {}
         used = pack.get("usage") if isinstance(pack.get("usage"), dict) else {}
+        summary = usage.get("usage_summary") if isinstance(usage.get("usage_summary"), dict) else {}
         try:
-            limit = int(quota.get("advanced_model_request_limit") or 0)
-            consumed = int(used.get("advanced_model_request_usage") or 0)
+            if summary.get("total_amount") is not None:
+                limit = float(summary.get("total_amount") or 0)
+                consumed = float(summary.get("consumed_amount") or 0)
+            else:
+                limit = int(quota.get("advanced_model_request_limit") or 0)
+                consumed = int(used.get("advanced_model_request_usage") or 0)
         except (TypeError, ValueError):
             limit, consumed = 0, 0
+        remain = max(0, limit - consumed)
+        if isinstance(remain, float):
+            remain = round(remain, 2)
         checkin = (getattr(account, "extra", {}) or {}).get("checkin") or {}
         try:
             credits = int(checkin.get("credits") or 0)
@@ -1591,9 +1599,10 @@ class Account(object):
             "checkin_at": checkin.get("at") or "",
             "checked_in": bool(checkin.get("checked_in")),
             "plan": str(pack.get("display_desc") or ""),
-            "remain": max(0, limit - consumed),
+            "remain": remain,
             "limit": limit,
             "used": consumed,
+            "total": limit,
             "updated_at": getattr(account, "usage_updated_at", 0) or 0,
         }
 

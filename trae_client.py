@@ -123,6 +123,7 @@ PATH_ACTIVITY = "/api/v1/commercial/get_user_activity"
 PATH_EXCHANGE_TOKEN = "/cloudide/api/v3/trae/oauth/ExchangeToken"
 PATH_TEMP_TOKEN = "/cloudide/api/v3/trae/GenerateTempToken"
 PATH_ENT_USAGE = "/trae/api/v1/pay/ide_user_ent_usage"
+PATH_ENT_USAGE_V2 = "/trae/api/v2/pay/ide_user_ent_usage"
 PATH_PAY_STATUS = "/trae/api/v1/pay/ide_user_pay_status"
 
 # 上游错误码（PROTOCOL 第六节表格）
@@ -1274,7 +1275,8 @@ def fetch_entitlement(account, realm=None, strict=False, timeout=45):
     """
     realm = normalize_realm(realm or realm_of(account))
     out = {"realm": realm, "ent_usage": None, "pay_status": None, "errors": []}
-    for key, path in (("ent_usage", PATH_ENT_USAGE), ("pay_status", PATH_PAY_STATUS)):
+    ent_path = PATH_ENT_USAGE_V2 if realm == "cn" else PATH_ENT_USAGE
+    for key, path in (("ent_usage", ent_path), ("pay_status", PATH_PAY_STATUS)):
         try:
             out[key] = request_json(account, realm, path, {}, base="pay",
                                     timeout=timeout)
