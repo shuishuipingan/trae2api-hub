@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.2"
+VERSION = "1.1.4"
 
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
@@ -1298,11 +1298,19 @@ def account_credit_view(account):
     plan = str(pack.get("display_desc") or "")
     quota = pack.get("quota") if isinstance(pack.get("quota"), dict) else {}
     used = pack.get("usage") if isinstance(pack.get("usage"), dict) else {}
+    summary = usage.get("usage_summary") if isinstance(usage.get("usage_summary"), dict) else {}
     try:
-        limit = int(quota.get("advanced_model_request_limit") or 0)
-        consumed = int(used.get("advanced_model_request_usage") or 0)
+        if summary.get("total_amount") is not None:
+            limit = float(summary.get("total_amount") or 0)
+            consumed = float(summary.get("consumed_amount") or 0)
+        else:
+            limit = int(quota.get("advanced_model_request_limit") or 0)
+            consumed = int(used.get("advanced_model_request_usage") or 0)
     except (TypeError, ValueError):
         limit, consumed = 0, 0
+    remain = max(0, limit - consumed)
+    if isinstance(remain, float):
+        remain = round(remain, 2)
     checkin = (getattr(account, "extra", {}) or {}).get("checkin") or {}
     try:
         checkin_credits = int(checkin.get("credits") or 0)
@@ -1313,9 +1321,10 @@ def account_credit_view(account):
         "checkin_at": checkin.get("at") or "",
         "checked_in": bool(checkin.get("checked_in")),
         "plan": plan,
-        "remain": max(0, limit - consumed),
+        "remain": remain,
         "limit": limit,
         "used": consumed,
+        "total": limit,
         "updated_at": getattr(account, "usage_updated_at", 0) or 0,
         "source": "entitlement+checkin",
     }
@@ -1481,7 +1490,9 @@ def credits_summary():
         remain = cred.get("remain")
         # issue #39：团队账号的套餐 may 用满而共享池仍有余额——汇总按有效余额，
         # 同时保留原始 remain 便于核对（两者都会出现在行里）。
-        eff = trae_accounts.effective_remain(cred)
+        # 新 v2 usage_summary 的 remain 是小数（如 899.61）；不要走
+        # effective_remain 的 int() 截断，否则汇总会丢两位小数。
+        eff = remain if isinstance(remain, (int, float)) and not isinstance(remain, bool) else trae_accounts.effective_remain(cred)
         rows.append({
             "uid": getattr(a, "uid", "") or "",
             "nickname": account_label(a),
@@ -1498,8 +1509,8 @@ def credits_summary():
             "registered_at": cred.get("updated_at"),
         })
         if isinstance(eff, (int, float)) and not isinstance(eff, bool):
-            by_realm[realm] = by_realm.get(realm, 0) + int(eff)
-            total_remain += int(eff)
+            by_realm[realm] = round(by_realm.get(realm, 0) + float(eff), 2)
+            total_remain = round(total_remain + float(eff), 2)
     return {
         "by_realm": by_realm,
         "totals": {"remain": total_remain, "accounts": len(rows)},

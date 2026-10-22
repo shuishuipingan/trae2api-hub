@@ -701,7 +701,7 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
   <div class="cards" id="cards"></div>
 
   <section>
-    <h2>账号<em id="acctCount"></em></h2>
+    <h2>账号<em id="acctCount"></em><span id="acctTotalCredits" style="margin-left:12px;font-size:12px;color:var(--accent2);font-weight:700"></span></h2>
     <div class="toolbar" style="align-items:center">
     <button class="sec" id="btnCheckin" onclick="doCheckin(this)">每日签到</button>
     <button class="sec" onclick="fetchCredits(this)">刷新权益</button>
@@ -2422,8 +2422,11 @@ function accountEntitlementText(a){
   const fast = quota.premium_model_fast_request_limit;
   const bits = [];
   const cr = (a.credits && typeof a.credits === 'object') ? a.credits : {};
+  if(cr.remain != null && Number(cr.limit) > 0){
+    bits.push('<b style="color:var(--accent2)">总积分 ' + fmt(cr.remain) + '</b>');
+  }
   if(cr.checkin || cr.checked_in){
-    bits.push('<b style="color:var(--accent2)">积分 ' + fmt(cr.checkin || 0) + '</b>');
+    bits.push('签到 ' + fmt(cr.checkin || 0));
   }
   if(plan) bits.push('<b style="color:var(--accent2)">' + esc(plan) + '</b>');
   if(adv != null) bits.push('高级模型 ' + fmt(adv) + ' 次');
@@ -2490,12 +2493,17 @@ function accountRow(a){
 
 function renderAccounts(){
   const box = document.getElementById('accounts');
-  const currentView = (window.VIEW_REALM || "cn");
-  let list = (window.ACCOUNTS || []).filter(a => !a.realm || a.realm === currentView);
+  // 账号池展示双区全部账号；区域徽标已有，不再只显示当前视图。
+  let list = (window.ACCOUNTS || []);
   const usable = list.filter(a => a.enabled).length;
-  const viewName = currentView === 'cn' ? '国内版' : '国际版';
   document.getElementById('acctCount').textContent =
-    list.length ? ('（' + viewName + '共 ' + list.length + ' 个，启用 ' + usable + ' 个）') : '';
+    list.length ? ('（全部共 ' + list.length + ' 个，启用 ' + usable + ' 个）') : '';
+  const totalCredits = list.reduce((sum, a) => {
+    const c = (a.credits && typeof a.credits === 'object') ? a.credits : {};
+    return sum + (Number(c.remain) || 0);
+  }, 0);
+  const creditEl = document.getElementById('acctTotalCredits');
+  if(creditEl) creditEl.textContent = list.length ? ('总可用积分 ' + fmt(Math.round(totalCredits * 100) / 100)) : '';
   if(!list.length){
     box.innerHTML =
       '<div style="text-align:center;padding:30px 16px">'
@@ -2538,7 +2546,7 @@ async function fetchCredits(btn){
   const currentView = (window.VIEW_REALM || "cn");
   const viewName = currentView === 'cn' ? '国内版' : '国际版';
   try{
-    const r = await postJSON('/accounts/credits/fetch', {realm: currentView});
+    const r = await postJSON('/accounts/credits/fetch', {realm: 'all'});
     await Promise.all([loadAccounts(), refresh()]);
     const n = (r.results || []).filter(x => x.ok).length;
     const bad = (r.results || []).filter(x => !x.ok);
