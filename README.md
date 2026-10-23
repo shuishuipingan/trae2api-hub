@@ -375,6 +375,61 @@ python _diag_gateway.py --chat
 - [ ] 智能成本-延迟路由
 - [ ] 多租户账单与预算
 
+
+---
+
+## Agent 通道（SOLO，1.4.0）
+
+CN 的 SOLO/Agent 模型通过纯 HTTP 通道执行：
+
+    POST https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat
+    function = solo_work_lite
+
+这条通道只需要：
+
+    Authorization: Cloud-IDE-JWT <accessToken>
+    X-Cloudide-Token / X-Ide-Token / X-Uid
+    X-Machine-Id / X-Device-Id
+
+不需要 SQLCipher、不需要 AHA、不需要本机 Trae CN 进程。
+
+### 已接入
+
+    /v1/chat/completions  -> 自动识别 20 个 SOLO 模型
+    /v1/agent/chat        -> 显式 Agent 入口
+
+示例：
+
+    curl -X POST http://127.0.0.1:8791/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -d "{\"model\":\"deepseek-v4.1-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"只回答好\"}]}"
+
+### 跨设备 / 跨账号
+
+每个账号需要自己有效的 accessToken，以及该账号登录设备的：
+
+    machine_id
+    device_id
+
+网关优先从账号 extra 的 machine_id/device_id 读取，其次读环境变量：
+
+    TRAE_DEVICE_ID
+    TRAE_MACHINE_ID
+
+因此换设备时把该设备的 device_id/machine_id 写进账号或环境变量即可；换账号时导入该账号自己的 accessToken。不会再依赖本机 App 或 SQLCipher。
+
+### 兼容层
+
+旧的 UI/AHA 桥还保留在 tools/trae_ui_agent.mjs，只有在设置：
+
+    TRAE_AGENT_UI_FALLBACK=1
+
+且本机 Trae CN 以 CDP 9335 启动时才作为 fallback 使用。
+
+### 边界
+
+没有有效 CN accessToken，或 device_id/machine_id 与该账号设备不匹配时，SOLO 通道会被上游拒绝。这不是无账号方案。
+
 ---
 
 ## 📄 License

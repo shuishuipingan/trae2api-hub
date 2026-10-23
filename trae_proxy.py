@@ -70,8 +70,32 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.1.5"
+VERSION = "1.4.0"
 
+SOLO_MODEL_ALIASES = {
+    "Seed-Code": "Doubao-Seed-Code",
+    "DeepSeek-V4-Flash": "DeepSeek-V4-Flash-Official",
+    "DeepSeek-V4-Pro": "DeepSeek-V4-Pro-Official",
+    "DeepSeek-V4.1-Flash": "deepseek-v4.1-flash",
+    "GLM-5.2": "glm-5.2", "GLM-5.3": "glm-5.3",
+    "GLM-5.3-Flash": "glm-5.3-flash", "GLM-5.3-FlashX": "glm-5.3-flashx",
+    "Kimi-K2.8-Preview": "kimi-k2.8-preview", "Kimi-K3": "kimi-k3",
+    "MiMo-V2.6-Flash": "mimo-v2.6-flash", "MiMo-V2.6-Pro": "mimo-v2.6-pro",
+    "MiniMax-M3": "minimax-m3", "Qwen3.7-Plus": "qwen-3.7-plus",
+    "Qwen3.8-Flash": "qwen3.8-flash", "Qwen3.8-Max": "qwen3.8-max",
+    "Seed-2.1-Pro-0915": "Doubao-Seed-2.1-Pro",
+    "Seed-2.1-Turbo": "Doubao-Seed-2.1-Turbo",
+    "Seed-Evolving": "Doubao-Seed-Evolving",
+    "Step-5-Preview": "step-5-preview",
+}
+SOLO_AGENT_MODELS = {
+    "Doubao-Seed-Code", "DeepSeek-V4-Flash-Official", "DeepSeek-V4-Pro-Official",
+    "deepseek-v4.1-flash", "glm-5.2", "glm-5.3", "glm-5.3-flash", "glm-5.3-flashx",
+    "kimi-k2.8-preview", "kimi-k3", "mimo-v2.6-flash", "mimo-v2.6-pro",
+    "minimax-m3", "qwen-3.7-plus", "qwen3.8-flash", "qwen3.8-max",
+    "Doubao-Seed-2.1-Pro", "Doubao-Seed-2.1-Turbo", "Doubao-Seed-Evolving",
+    "step-5-preview",
+} | set(SOLO_MODEL_ALIASES)
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
 
@@ -1877,7 +1901,7 @@ def _usage_timeseries_uncached(realm, lo, hi, step):
 # （error 行计入 errors、token 字段与 credit 的累加方式相同）。
 # 性能：日志是单进程顺序 append 的，所以从尾部倒读、遇到早于窗口的行即停——
 # 30 天窗口不必从文件头扫起（日志实测可长到几十 MB/天）。
-DAILY_MAX_DAYS = 90
+DAILY_MAX_DAYS = 366
 DAILY_GROUPS = ("model", "realm", "key", "account")
 _daily_cache = {}
 _daily_lock = threading.Lock()
@@ -3169,7 +3193,12 @@ def model_entry(mid, meta, realm=None):
     item["display_name"] = display_name
     catalog_available = meta.get("available")
     pool_available = model_availability(mid, realm, meta)
-    if catalog_available is None:
+    if mid in SOLO_AGENT_MODELS:
+        # These models are served by the portable SOLO channel; they are not
+        # raw_chat-only and no longer need the desktop App.
+        item["available"] = bool(pool_available)
+        item["access"] = "solo"
+    elif catalog_available is None:
         item["available"] = bool(pool_available)
     else:
         item["available"] = bool(catalog_available) and bool(pool_available)
@@ -5715,6 +5744,126 @@ def trae_auth_headers(account, realm, sse=True, extra=None):
         headers.update(extra)
     return headers
 
+
+def trae_solo_chat(account, payload, timeout=180):
+    """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite).
+
+    This is the portable Trae SOLO channel used by Agent models. It only needs
+    the account access token plus the device identity; no SQLCipher, no AHA,
+    no local Trae CN process.
+    """
+    token = str(getattr(account, "token", "") or "").strip()
+    if not token:
+        raise RuntimeError("account access token is empty")
+    uid = str(getattr(account, "uid", "") or "").strip()
+    extra = getattr(account, "extra", None) or {}
+    dev = str(extra.get("device_id") or os.environ.get("TRAE_DEVICE_ID") or "1149420231460112").strip()
+    mid = str(extra.get("machine_id") or os.environ.get("TRAE_MACHINE_ID") or "d979d81c1deda7a803cb6b76be69cff63b40dd24ea60d3fabbd865607f7ee695").strip()
+    headers = {
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json",
+        "User-Agent": "Trae/0.1.61 antigravity-cockpit-tools",
+        "Authorization": "Cloud-IDE-JWT " + token,
+        "X-Cloudide-Token": token,
+        "X-Ide-Token": token,
+        "X-Uid": uid,
+        "X-Machine-Id": mid,
+        "X-Device-Id": dev,
+        "X-App-Id": "6eefa01c-1036-4c7e-9ca5-d891f63bfcd8",
+        "X-App-Version": "default",
+        "X-Ide-Version": "0.1.61",
+        "X-Ide-Version-Code": "20260820",
+        "X-App-Version-Code": "20260820",
+        "X-Ide-Version-Type": "stable",
+        "X-Device-Type": "windows",
+        "X-OS-Version": "Windows 11 Pro",
+        "X-Device-Brand": "83DG",
+        "Request-Traffic-Type": "prod",
+    }
+    model = str(payload.get("model") or "deepseek-v4.1-flash").strip()
+    model = SOLO_MODEL_ALIASES.get(model, model)
+    if model.endswith("-solo"):
+        model = model[:-5]
+    messages = []
+    for m in payload.get("messages") or []:
+        if not isinstance(m, dict):
+            continue
+        role = str(m.get("role") or "user")
+        if role == "developer":
+            role = "system"
+        content = m.get("content")
+        if isinstance(content, str):
+            blocks = [{"type": "text", "text": content}]
+        elif isinstance(content, list):
+            blocks = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    blocks.append({"type": "text", "text": str(part.get("text") or "")})
+            if not blocks:
+                continue
+        else:
+            continue
+        messages.append({"role": role, "content": blocks})
+    if not messages:
+        raise RuntimeError("messages must not be empty")
+    body = {
+        "messages": messages,
+        "function": "solo_work_lite",
+        "stream": True,
+        "config_name": model,
+        "model": model,
+        "max_tokens": int(payload.get("max_tokens") or 1000000),
+    }
+    if isinstance(payload.get("tools"), list) and payload["tools"]:
+        body["tools"] = payload["tools"]
+    req = urllib.request.Request(
+        "https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers=headers, method="POST")
+    try:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read(2000).decode("utf-8", "replace")
+        raise RuntimeError("solo HTTP %s: %s" % (exc.code, detail[:800]))
+    text_parts = []
+    reasoning_parts = []
+    finish_reason = "stop"
+    usage = {}
+    try:
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue
+            raw = line[5:].strip()
+            if not raw or raw == "[DONE]":
+                continue
+            try:
+                event = json.loads(raw)
+            except Exception:
+                continue
+            if event.get("code") not in (None, 0):
+                raise RuntimeError("solo error %s: %s" % (event.get("code"), event.get("message") or event.get("msg") or ""))
+            if event.get("response"):
+                text_parts.append(str(event["response"]))
+            if event.get("reasoning_content"):
+                reasoning_parts.append(str(event["reasoning_content"]))
+            if event.get("finish_reason"):
+                finish_reason = str(event["finish_reason"])
+            if "prompt_tokens" in event:
+                usage = {"prompt_tokens": int(event.get("prompt_tokens") or 0),
+                         "completion_tokens": int(event.get("completion_tokens") or 0),
+                         "total_tokens": int(event.get("total_tokens") or 0)}
+    finally:
+        try:
+            resp.close()
+        except Exception:
+            pass
+    content = "".join(text_parts)
+    if not content:
+        raise RuntimeError("solo returned empty content")
+    return {"content": content, "reasoning": "".join(reasoning_parts),
+            "finish_reason": finish_reason, "usage": usage,
+            "model": model}
 
 def trae_open_chat(account, realm, body, host=None, timeout=600):
     """打开一次 llm_raw_chat（始终流式返回 SSE，协议 §六）。"""
@@ -9718,6 +9867,80 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "token": token})
         return self._error(404, "not found", "invalid_request_error")
 
+    def _handle_agent_solo(self, payload):
+        model = str(payload.get("model") or "deepseek-v4.1-flash")
+        account = POOL.pick(realm="cn")
+        if not account:
+            account = next((a for a in getattr(POOL, "accounts", []) if getattr(a, "realm", "") == "cn"), None)
+        if not account:
+            return self._error(503, "no CN account available", "server_error")
+        try:
+            result = trae_solo_chat(account, {**payload, "model": model})
+        except Exception as exc:
+            return self._error(502, "Trae SOLO upstream failed: %s" % exc, "upstream_error")
+        if payload.get("stream"):
+            self._sse_begin()
+            cid = "chatcmpl-" + uuid.uuid4().hex
+            chunk = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": result["content"]}, "finish_reason": None}]}
+            self._sse_write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode("utf-8"))
+            done = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": result["finish_reason"]}]}
+            self._sse_write(("data: " + json.dumps(done, ensure_ascii=False) + "\n\n").encode("utf-8"))
+            self._sse_write(b"data: [DONE]\n\n")
+            self._sse_end()
+            return
+        return self._json(200, {
+            "id": "chatcmpl-" + uuid.uuid4().hex,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": result["content"], "reasoning_content": result["reasoning"]}, "finish_reason": result["finish_reason"]}],
+            "usage": result["usage"] or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        })
+
+    def _handle_agent_ui(self, payload):
+        """Run a client_catalog Agent model through the local Trae CN UI bridge.
+        Requires Trae CN running with --remote-debugging-port=9335 on this host.
+        """
+        import subprocess, uuid
+        model = str(payload.get("model") or "deepseek-v4.1-flash")
+        msgs = payload.get("messages") or []
+        prompt = ""
+        for m in reversed(msgs):
+            if isinstance(m, dict) and m.get("role") == "user":
+                c = m.get("content")
+                if isinstance(c, str):
+                    prompt = c
+                elif isinstance(c, list):
+                    prompt = "".join(str(x.get("text", "")) for x in c if isinstance(x, dict))
+                break
+        if not prompt:
+            return self._error(400, "messages must contain a user prompt", "invalid_request_error")
+        helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", "trae_ui_agent.mjs")
+        if not os.path.exists(helper):
+            return self._error(503, "Trae UI agent bridge is not installed", "server_error")
+        try:
+            r = subprocess.run(["node", helper, prompt], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
+            line = (r.stdout or "").strip().splitlines()[-1] if r.stdout else ""
+            data = json.loads(line) if line else {}
+            text = data.get("text") or ""
+            if not data.get("ok") or not text:
+                return self._error(502, "Trae UI agent did not return an answer: " + (r.stderr or "")[-500:], "upstream_error")
+            return self._json(200, {
+                "id": "chatcmpl-" + uuid.uuid4().hex,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "trae_session": data.get("session"),
+            })
+        except subprocess.TimeoutExpired:
+            return self._error(504, "Trae UI agent timed out", "timeout")
+        except Exception as exc:
+            return self._error(502, "Trae UI agent failed: %s" % exc, "upstream_error")
+
     def _handle_accounts(self, path, payload):
         """Account-management endpoints (dashboard uses these)."""
         if POOL is None:
@@ -10612,6 +10835,15 @@ class Handler(BaseHTTPRequestHandler):
             or path.startswith("/logs")
             or path.startswith("/models/")
         )
+        if path in ("/v1/agent/chat", "/agent/chat"):
+            if not self._authorized():
+                return
+            payload = self._payload_or_error()
+            if payload is None:
+                return
+            if os.environ.get("TRAE_AGENT_UI_FALLBACK") == "1":
+                return self._handle_agent_ui(payload)
+            return self._handle_agent_solo(payload)
         if not is_account_route and path not in (
                 "/v1/chat/completions", "/chat/completions",
                 "/v1/responses", "/responses",
@@ -10641,6 +10873,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_anthropic(path, payload)
 
         # ---- Chat Completions 主链路 ----
+        if str(payload.get("model") or "") in SOLO_AGENT_MODELS:
+            return self._handle_agent_solo(payload)
         normalize_tool_choice(payload)
         normalize_tools(payload)
         translate_max_completion_tokens(payload)

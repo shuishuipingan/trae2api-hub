@@ -422,6 +422,58 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
 .cell-nowrap{white-space:nowrap}
 .cell-sub{display:block;font-size:10px;color:var(--dim);line-height:1.35}
 @media (max-width:900px){ .key-usage-charts{grid-template-columns:1fr !important} }
+
+/* ---- Overview / analytics v4 ---- */
+.ov-shell{padding:2px 0 8px}
+.ov-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.ov-title{font-size:16px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:10px}
+.ov-sub{font-size:12px;color:var(--dim);margin-top:3px;font-weight:400}
+.ov-range{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ov-range button{height:30px;border:1px solid var(--line);background:var(--panel);color:var(--dim);border-radius:7px;padding:0 12px;font-size:12px;cursor:pointer}
+.ov-range button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.ov-range input{height:30px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:7px;padding:0 8px;font-size:12px}
+.ov-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.ov-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.ov-kpi .k{font-size:11px;color:var(--dim);font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-kpi .v{font-size:21px;line-height:1.2;font-weight:750;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-kpi .s{font-size:10px;color:var(--dim);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.ov-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.ov-panel h3{margin:0;font-size:13px;color:var(--fg);display:flex;align-items:center;gap:6px}
+.ov-panel .ov-hint{font-size:11px;color:var(--dim);margin-left:5px;font-weight:400}
+.ov-empty{min-height:66px;border-radius:9px;background:var(--panel2);color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:10px;text-align:center;padding:12px}
+.ov-list{margin-top:10px;display:flex;flex-direction:column;gap:9px}
+.ov-row{display:grid;grid-template-columns:minmax(100px,1.1fr) 2fr auto;align-items:center;gap:10px;font-size:12px;color:var(--fg)}
+.ov-row .bar{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.ov-row .bar i{display:block;height:100%;background:var(--accent);border-radius:5px;min-width:2px}
+.ov-row .num{font-variant-numeric:tabular-nums;color:var(--dim);font-size:11px;text-align:right;white-space:nowrap}
+.ov-heat-wrap{overflow-x:auto;padding:6px 0 2px}
+.ov-heat-months{display:grid;grid-template-columns:repeat(14,1fr);font-size:10px;color:var(--dim);min-width:760px;margin:0 0 6px 32px}
+.ov-heat{display:grid;grid-template-rows:repeat(7,13px);grid-auto-flow:column;grid-auto-columns:13px;gap:3px;min-width:760px}
+.ov-heat i{display:block;width:13px;height:13px;border-radius:3px;background:var(--panel2)}
+.ov-heat i.l1{background:#bfdbfe}.ov-heat i.l2{background:#60a5fa}.ov-heat i.l3{background:#2563eb}.ov-heat i.l4{background:#1e3a8a}
+.ov-heat-week{display:flex;flex-direction:column;gap:30px;float:left;font-size:10px;color:var(--dim);padding-top:18px;width:28px}
+.ov-legend{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--dim);flex-wrap:wrap;margin-top:8px}
+.ov-legend b{font-weight:500;margin-right:2px}
+.ov-legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:3px;vertical-align:-2px;background:var(--panel2)}
+.ov-legend i.l1{background:#bfdbfe}.ov-legend i.l2{background:#60a5fa}.ov-legend i.l3{background:#2563eb}.ov-legend i.l4{background:#1e3a8a}
+.ov-cache-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 12px}
+.ov-cache{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;min-width:0}
+.ov-cache .k{font-size:11px;color:var(--dim);font-weight:600}
+.ov-cache .v{font-size:19px;font-weight:750;margin-top:4px;color:var(--fg)}
+.ov-cache .s{font-size:10px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-chart{width:100%;height:190px;display:block;margin-top:6px;overflow:visible}
+.ov-chart text{fill:var(--dim);font-size:10px;font-family:inherit}
+.ov-chart .axis{stroke:var(--line);stroke-width:1}
+.ov-chart .line{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ov-chart .bar{fill:var(--accent);opacity:.85}
+.ov-chart .bar:hover{opacity:1}
+.ov-chart .grid{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4;opacity:.65}
+.ov-chart .empty{fill:var(--dim);font-size:12px}
+@media(max-width:1100px){.ov-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-grid2{grid-template-columns:1fr}.ov-cache-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+#legacyAnalytics section{display:none!important}
 </style>
 <link rel="stylesheet" href="/dashboard-v3.css?v=18">
 <script>
@@ -885,6 +937,85 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
   </div>
 </div>
   <div id="pageAnalytics" class="main-page">
+
+<div class="ov-shell">
+  <div class="ov-head">
+    <div>
+      <div class="ov-title">统计概览 <span class="ov-sub">自定义区间</span></div>
+    </div>
+    <div class="ov-range">
+      <button id="ovRToday" onclick="ovSetRange('today')">今天</button>
+      <button id="ovR7" class="active" onclick="ovSetRange('7d')">7 天</button>
+      <button id="ovR30" onclick="ovSetRange('30d')">30 天</button>
+      <button id="ovRMonth" onclick="ovSetRange('month')">本月</button>
+      <button id="ovRAll" onclick="ovSetRange('all')">全部</button>
+      <button id="ovRCustom" onclick="ovSetRange('custom')">自定义</button>
+      <input id="ovDateFrom" type="date" aria-label="开始日期">
+      <span style="color:var(--dim);font-size:12px">~</span>
+      <input id="ovDateTo" type="date" aria-label="结束日期">
+    </div>
+  </div>
+
+  <div class="ov-kpis">
+    <div class="ov-kpi"><div class="k">总请求数</div><div class="v" id="ovRequests">0</div><div class="s" id="ovRangeLabel">自定义区间</div></div>
+    <div class="ov-kpi"><div class="k">成功请求数</div><div class="v" id="ovSuccess">0</div><div class="s" id="ovSuccessRate">成功率 —</div></div>
+    <div class="ov-kpi"><div class="k">总 Token</div><div class="v" id="ovTokens">0</div><div class="s" id="ovTokensDetail">输入 + 输出</div></div>
+    <div class="ov-kpi"><div class="k">活跃天数</div><div class="v" id="ovActiveDays">0</div><div class="s" id="ovActiveDaysDetail">区间共 7 天</div></div>
+    <div class="ov-kpi"><div class="k">当前连续天数</div><div class="v" id="ovStreak">0</div><div class="s" id="ovStreakDetail">含今天在内往前数</div></div>
+    <div class="ov-kpi"><div class="k">Top 模型</div><div class="v" id="ovTopModel">—</div><div class="s" id="ovTopModelDetail">所选范围内还没有模型用量</div></div>
+  </div>
+
+  <div class="ov-grid2">
+    <div class="ov-panel">
+      <h3>Top 账号 <span class="ov-hint" id="ovTopAcctTotal">0 tokens</span></h3>
+      <div id="ovTopAccounts" class="ov-empty">所选范围内还没有账号用量</div>
+    </div>
+    <div class="ov-panel">
+      <h3>Top 提供商 <span class="ov-hint" id="ovTopProviderTotal">0 tokens</span></h3>
+      <div id="ovTopProviders" class="ov-empty">所选范围内还没有请求记录</div>
+    </div>
+  </div>
+
+  <div class="ov-grid2">
+    <div class="ov-panel">
+      <h3>模型用量 <span class="ov-hint" id="ovModelUsageHint">按 Token</span></h3>
+      <div id="ovModelUsage" class="ov-empty">所选范围内还没有模型用量</div>
+    </div>
+    <div class="ov-panel">
+      <h3>提供商用量 <span class="ov-hint">按 Token</span></h3>
+      <div id="ovProviderUsage" class="ov-empty">所选范围内还没有提供商用量</div>
+    </div>
+  </div>
+
+  <div class="ov-panel" style="margin-bottom:12px">
+    <h3>活跃热力图 <span class="ov-hint">近 365 天，按天 Token 用量着色（档位按本窗口峰值自动定）</span></h3>
+    <div class="ov-heat-wrap">
+      <div class="ov-heat-week"><span>一</span><span>三</span><span>五</span></div>
+      <div class="ov-heat-months" id="ovHeatMonths"></div>
+      <div class="ov-heat" id="ovHeatmap"></div>
+    </div>
+    <div class="ov-legend"><b>Token</b><span><i></i>0</span><span><i class="l1"></i>≤1</span><span><i class="l2"></i>1–2</span><span><i class="l3"></i>2–3</span><span><i class="l4"></i>&gt;3</span><span style="margin-left:auto">方格为本地自然日，无请求显示为空槽</span></div>
+  </div>
+
+  <div class="ov-panel" style="margin-bottom:12px">
+    <h3>缓存命中率 <span class="ov-hint">按提示词前缀复用比</span></h3>
+    <div class="ov-cache-grid">
+      <div class="ov-cache"><div class="k">近 10 分钟</div><div class="v" id="ovCache10">—</div><div class="s" id="ovCache10Detail">命中 0 / 输入 0</div></div>
+      <div class="ov-cache"><div class="k">近 1 小时</div><div class="v" id="ovCache1h">—</div><div class="s" id="ovCache1hDetail">命中 0 / 输入 0</div></div>
+      <div class="ov-cache"><div class="k">近 24 小时</div><div class="v" id="ovCache24h">—</div><div class="s" id="ovCache24hDetail">命中 0 / 输入 0</div></div>
+      <div class="ov-cache"><div class="k">近 7 天</div><div class="v" id="ovCache7d">—</div><div class="s" id="ovCache7dDetail">命中 0 / 输入 0</div></div>
+    </div>
+    <h3 style="margin-top:2px">近 24 小时缓存命中率趋势 <span class="ov-hint">按本地整点；无请求的整点不标注</span></h3>
+    <svg id="ovCacheTrend" class="ov-chart" viewBox="0 0 900 190" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="ov-panel">
+    <h3 id="ovDailyTitle">按天 Token 趋势 <span class="ov-hint">按自然日汇总</span></h3>
+    <svg id="ovDailyTrend" class="ov-chart" viewBox="0 0 900 190" preserveAspectRatio="none"></svg>
+  </div>
+</div>
+
+<div id="legacyAnalytics" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <div>
         <h2 style="margin:0;font-size:16px;color:var(--fg);display:flex;align-items:center;gap:8px">
@@ -1010,6 +1141,7 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
       </div>
     </section>
   </div>
+</div>
 
 
 
@@ -5383,6 +5515,7 @@ async function loadAnalytics(){
     const [data] = await Promise.all([getJSON('/usage/analytics'), loadByKey()]);
     cachedAnalyticsData = data;
     renderAnalytics(data);
+    if(document.getElementById('ovRequests')) ovLoad();
   } catch(err) {
     console.error('loadAnalytics failed:', err);
   }
@@ -5492,5 +5625,177 @@ function renderAnalytics(data){
 </script>
 <script src="/dashboard-charts.js?v=15"></script>
 <script src="/dashboard-v3.js?v=23"></script>
+<script>
+/* ---- Stats overview v4 ---- */
+let ovRange = '7d';
+let ovCacheTimer = 0;
+
+function ovPad(n){return String(n).padStart(2,'0')}
+function ovDateValue(d){return d.getFullYear()+'-'+ovPad(d.getMonth()+1)+'-'+ovPad(d.getDate())}
+function ovSetDatesForRange(r){
+  const to = new Date(); const from = new Date(to.getFullYear(),to.getMonth(),to.getDate());
+  if(r==='today') { /* same day */ }
+  else if(r==='7d') from.setDate(from.getDate()-6);
+  else if(r==='30d') from.setDate(from.getDate()-29);
+  else if(r==='month') from.setDate(1);
+  else return;
+  document.getElementById('ovDateFrom').value=ovDateValue(from);
+  document.getElementById('ovDateTo').value=ovDateValue(to);
+}
+function ovRangeQuery(){
+  const now=Math.floor(Date.now()/1000);
+  if(ovRange==='all') return 'range=all';
+  if(ovRange==='today') return 'range=today';
+  if(ovRange==='month') return 'range=month';
+  if(ovRange==='7d' || ovRange==='30d'){
+    const d=new Date(); const end=now;
+    const start=Math.floor(new Date(d.getFullYear(),d.getMonth(),d.getDate()-((ovRange==='7d')?6:29)).getTime()/1000);
+    return 'range=custom&since='+start+'&until='+end;
+  }
+  const f=document.getElementById('ovDateFrom').value;
+  const t=document.getElementById('ovDateTo').value;
+  if(f && t){
+    return 'range=custom&since='+Math.floor(new Date(f+'T00:00:00').getTime()/1000)+'&until='+Math.floor(new Date(t+'T23:59:59').getTime()/1000);
+  }
+  return 'range=all';
+}
+function ovRangeLabel(){
+  if(ovRange==='today') return '今天';
+  if(ovRange==='7d') return '近 7 天';
+  if(ovRange==='30d') return '近 30 天';
+  if(ovRange==='month') return '本月';
+  if(ovRange==='all') return '全部历史';
+  return '自定义区间';
+}
+function ovSetRange(r){
+  ovRange=r;
+  ['ovRToday','ovR7','ovR30','ovRMonth','ovRAll','ovRCustom'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById({today:'ovRToday','7d':'ovR7','30d':'ovR30',month:'ovRMonth',all:'ovRAll',custom:'ovRCustom'}[r]).classList.add('active');
+  if(r!=='custom') ovSetDatesForRange(r);
+  ovLoad();
+}
+function ovSetText(id, text){const e=document.getElementById(id);if(e)e.textContent=text}
+function ovSvgLine(svgId, values, labels, opts){
+  const svg=document.getElementById(svgId); if(!svg) return;
+  opts=opts||{}; const W=900,H=190,L=42,R=14,T=14,B=28;
+  const pts=(values||[]).map(Number); const labs=labels||[];
+  const has=pts.some(v=>Number.isFinite(v) && v!==0);
+  if(!has){svg.innerHTML='<text x="450" y="93" text-anchor="middle" class="empty">所选范围内暂无请求</text>';return;}
+  const max=opts.max||Math.max(1,...pts.filter(Number.isFinite));
+  const min=opts.min||0;
+  const x=i=>L+(pts.length<=1?0:i*(W-L-R)/(pts.length-1));
+  const y=v=>T+(H-T-B)*(1-(v-min)/(max-min||1));
+  let out='';
+  for(let i=0;i<=4;i++){const yy=T+(H-T-B)*i/4;const val=max-(max-min)*i/4;out+='<line class="grid" x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'"/>'+
+    '<text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end">'+esc(opts.fmt?opts.fmt(val):Math.round(val))+'</text>';}
+  let d=''; let started=false;
+  pts.forEach((v,i)=>{if(!Number.isFinite(v))return; d+=(started?' L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);started=true;});
+  out+='<path class="line" d="'+d+'"/>';
+  const step=Math.max(1,Math.ceil(pts.length/7));
+  for(let i=0;i<pts.length;i+=step){out+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle">'+esc(labs[i]||'')+'</text>';}
+  out+='<text x="'+(L-7)+'" y="'+(T+8)+'" text-anchor="end">'+esc(opts.unit||'')+'</text>';
+  svg.innerHTML=out;
+}
+function ovSvgBars(svgId, values, labels, opts){
+  const svg=document.getElementById(svgId); if(!svg) return;
+  opts=opts||{}; const W=900,H=190,L=46,R=14,T=14,B=28;
+  const pts=(values||[]).map(Number); const labs=labels||[];
+  if(!pts.some(v=>Number.isFinite(v)&&v>0)){svg.innerHTML='<text x="450" y="93" text-anchor="middle" class="empty">所选范围内暂无请求</text>';return;}
+  const max=Math.max(1,...pts.filter(Number.isFinite));
+  let out='';
+  for(let i=0;i<=4;i++){const yy=T+(H-T-B)*i/4;out+='<line class="grid" x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'"/><text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end">'+esc(fmtCompact(max*(1-i/4),true))+'</text>';}
+  const bw=Math.max(2,(W-L-R)/Math.max(1,pts.length)-4);
+  pts.forEach((v,i)=>{const bh=(H-T-B)*Math.max(0,v)/max;const xx=L+i*((W-L-R)/Math.max(1,pts.length))+(W-L-R)/(Math.max(1,pts.length)*2)-bw/2;out+='<rect class="bar" x="'+xx.toFixed(1)+'" y="'+(H-B-bh).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2"><title>'+esc(labs[i]||'')+': '+esc(fmt(v))+'</title></rect>';});
+  const step=Math.max(1,Math.ceil(pts.length/7));
+  for(let i=0;i<pts.length;i+=step){out+='<text x="'+(L+i*((W-L-R)/Math.max(1,pts.length))+(W-L-R)/(Math.max(1,pts.length)*2))+'" y="'+(H-8)+'" text-anchor="middle">'+esc(labs[i]||'')+'</text>';}
+  svg.innerHTML=out;
+}
+function ovRenderList(id, rows, total, emptyText){
+  const el=document.getElementById(id); if(!el)return;
+  const rs=(rows||[]).filter(x=>Number(x.tokens||0)>0).slice(0,6);
+  if(!rs.length){el.className='ov-empty';el.textContent=emptyText||'所选范围内还没有用量';return;}
+  el.className='ov-list';
+  const mx=Math.max(1,...rs.map(x=>Number(x.tokens||0)));
+  el.innerHTML=rs.map(x=>'<div class="ov-row"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.name||'—')+'</span><div class="bar"><i style="width:'+(100*Number(x.tokens||0)/mx).toFixed(1)+'%"></i></div><span class="num">'+esc(fmt(x.tokens||0))+'</span></div>').join('');
+}
+function ovRenderAnalytics(data){
+  const w=(data&&data.summary&&(data.summary.window||data.summary.all_time))||{};
+  const req=Number(w.requests||0), err=Number(w.errors||0);
+  const totalReq=req+err;
+  ovSetText('ovRequests',fmt(totalReq));
+  ovSetText('ovSuccess',fmt(req));
+  ovSetText('ovSuccessRate','成功率 '+(totalReq?((req/totalReq*100).toFixed(1)+'%'):'—'));
+  ovSetText('ovTokens',fmt(w.total_tokens||0));
+  ovSetText('ovTokensDetail','输入 '+fmt(w.prompt_tokens||0)+' + 输出 '+fmt(w.completion_tokens||0));
+  ovSetText('ovRangeLabel',ovRangeLabel());
+  const models=(data&&data.models||[]).map(m=>({name:m.model,tokens:(m.window||m.all_time||{}).total_tokens||0})).sort((a,b)=>b.tokens-a.tokens);
+  const top=models.find(x=>x.tokens>0);
+  ovSetText('ovTopModel',top?top.name:'—');
+  ovSetText('ovTopModelDetail',top?fmt(top.tokens)+' tokens':'所选范围内还没有模型用量');
+  const accts=(data&&data.accounts||[]).map(a=>({name:a.nickname||a.uid,tokens:(a.window||a.all_time||{}).total_tokens||0})).sort((a,b)=>b.tokens-a.tokens);
+  const at=accts.reduce((s,x)=>s+Number(x.tokens||0),0);
+  ovSetText('ovTopAcctTotal',fmt(at)+' tokens');
+  ovRenderList('ovTopAccounts',accts,'所选范围内还没有账号用量');
+  ovSetText('ovTopProviderTotal',fmt(w.total_tokens||0)+' tokens');
+  ovRenderList('ovTopProviders',[{name:'Trae',tokens:w.total_tokens||0}],'所选范围内还没有请求记录');
+  ovSetText('ovModelUsageHint',models.length?('共 '+models.length+' 个模型'):'按 Token');
+  ovRenderList('ovModelUsage',models,'所选范围内还没有模型用量');
+  ovRenderList('ovProviderUsage',[{name:'Trae',tokens:w.total_tokens||0}],'所选范围内还没有提供商用量');
+}
+async function ovLoad(){
+  if(!document.getElementById('ovRequests')) return;
+  if(!document.getElementById('ovDateFrom').value || !document.getElementById('ovDateTo').value) ovSetDatesForRange('7d');
+  let data;
+  try{data=await getJSON('/usage/analytics?'+ovRangeQuery());}catch(e){return;}
+  ovRenderAnalytics(data);
+  const days=ovRange==='30d'?30:(ovRange==='7d'?7:7);
+  ovLoadDaily(days);
+  ovLoadCache();
+}
+async function ovLoadDaily(days){
+  try{
+    const d=await getJSON('/usage/daily?days='+days+'&group=model');
+    const series=d.series||[];
+    const act=series.filter(x=>Number(x.requests||0)>0).length;
+    ovSetText('ovActiveDays',fmt(act));
+    ovSetText('ovActiveDaysDetail','区间共 '+days+' 天');
+    let streak=0; for(let i=series.length-1;i>=0;i--){if(Number(series[i].requests||0)>0)streak++;else break;}
+    ovSetText('ovStreak',fmt(streak));
+    ovSetText('ovStreakDetail','含今天在内往前数');
+    ovSvgBars('ovDailyTrend',series.map(x=>x.total_tokens||0),series.map(x=>x.label||''),{});
+  }catch(e){}
+  try{
+    const d=await getJSON('/usage/daily?days=365&group=model');
+    const series=d.series||[];
+    const cells=[]; const first=new Date((series[0]&&series[0].at||0)*1000); const pad=isNaN(first)?0:first.getDay();
+    for(let i=0;i<pad;i++)cells.push('<i style="visibility:hidden"></i>');
+    if(!series.length){for(let i=0;i<371;i++)cells.push('<i></i>');}
+    series.forEach(x=>{const v=Number(x.total_tokens||0)/1e6;let l='';if(v>3)l='l4';else if(v>2)l='l3';else if(v>1)l='l2';else if(v>0)l='l1';cells.push('<i class="'+l+'" title="'+esc(x.day||'')+': '+esc(fmt(x.total_tokens||0))+' tokens"></i>');});
+    const h=document.getElementById('ovHeatmap');if(h)h.innerHTML=cells.join('');
+    const m=document.getElementById('ovHeatMonths');if(m){const labels=['10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月'];m.innerHTML=labels.map(x=>'<span>'+x+'</span>').join('');}
+  }catch(e){}
+}
+async function ovLoadCache(){
+  const now=Math.floor(Date.now()/1000);
+  const windows=[['10',now-600,now,60],['1h',now-3600,now,60],['24h',now-86400,now,3600],['7d',now-7*86400,now,86400]];
+  const results=await Promise.all(windows.map(async w=>{
+    try{
+      const d=await getJSON('/usage/timeseries?range=custom&since='+w[1]+'&until='+w[2]+'&bucket='+w[3]);
+      let p=0,c=0; (d.series||[]).forEach(x=>{p+=Number(x.prompt_tokens||0);c+=Number(x.cached_tokens||0)});
+      return {id:w[0],p:p,c:c,series:d.series||[]};
+    }catch(e){return {id:w[0],p:0,c:0,series:[]}}
+  }));
+  const map={}; results.forEach(r=>map[r.id]=r);
+  const put=(id,r)=>{const p=Number(r.p||0),c=Number(r.c||0);const rate=p?((c/p*100).toFixed(1)+'%'):'—';ovSetText('ovCache'+id,rate);ovSetText('ovCache'+id+'Detail','命中 '+fmt(c)+' / 输入 '+fmt(p));};
+  put('10',map['10']);put('1h',map['1h']);put('24h',map['24h']);put('7d',map['7d']);
+  const s24=(map['24h']&&map['24h'].series)||[];
+  const buckets=new Array(24).fill(null); s24.forEach(x=>{const h=new Date((x.at||0)*1000).getHours();if(h>=0&&h<24)buckets[h]=x;});
+  const rates=buckets.map(x=>x?(Number(x.prompt_tokens||0)?Number(x.cached_tokens||0)/Number(x.prompt_tokens||0)*100:0):null);
+  const labels=buckets.map((x,i)=>ovPad(i)+':00');
+  ovSvgLine('ovCacheTrend',rates,labels,{min:0,max:100,unit:'%',fmt:v=>Math.round(v)+'%'});
+}
+document.addEventListener('DOMContentLoaded',function(){if(document.getElementById('ovRequests')){ovSetDatesForRange('7d');}});
+
+</script>
 </body>
 </html>
