@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -10214,6 +10214,10 @@ class Handler(BaseHTTPRequestHandler):
             if not account:
                 return self._error(404, "no such account")
             test_model = payload.get("model") or "auto"
+            if str(test_model).strip().lower() == "auto":
+                # `/accounts/test` uses the raw_chat upstream; `auto` is not a
+                # raw model and always returns upstream 400. Pick a real model.
+                test_model = "Doubao-1.5-pro" if acc_realm(account) == "cn" else "gpt-4o"
             test_payload = {
                 "model": test_model,
                 "messages": [{"role": "user", "content": "hi"}],

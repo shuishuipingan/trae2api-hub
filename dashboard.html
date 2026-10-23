@@ -474,6 +474,34 @@ button.page-nav-top:hover{background:var(--panel2);border-color:var(--accent);co
 @media(max-width:760px){.ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-grid2{grid-template-columns:1fr}.ov-cache-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 #legacyAnalytics section{display:none!important}
+
+/* micro-interactions for the overview */
+@keyframes ovIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes ovDraw{to{stroke-dashoffset:0}}
+@keyframes ovGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.ov-kpi,.ov-panel,.ov-cache{animation:ovIn .42s ease both}
+.ov-kpi:nth-child(2),.ov-panel:nth-child(2),.ov-cache:nth-child(2){animation-delay:.04s}
+.ov-kpi:nth-child(3),.ov-cache:nth-child(3){animation-delay:.08s}
+.ov-kpi:nth-child(4),.ov-cache:nth-child(4){animation-delay:.12s}
+.ov-kpi:nth-child(5){animation-delay:.16s}.ov-kpi:nth-child(6){animation-delay:.2s}
+.ov-kpi,.ov-panel,.ov-cache{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.ov-kpi:hover,.ov-panel:hover,.ov-cache:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--line-hover)}
+.ov-row{transition:background .16s ease,transform .16s ease;border-radius:7px;padding:1px 3px;margin:-1px -3px}
+.ov-row:hover{background:var(--panel2);transform:translateX(2px)}
+.ov-range button{transition:background .16s ease,color .16s ease,border-color .16s ease,transform .16s ease}
+.ov-range button:hover{color:var(--fg);border-color:var(--line-hover);transform:translateY(-1px)}
+.ov-range input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.ov-heat i{transition:transform .14s ease,filter .14s ease;cursor:default}
+.ov-heat i:hover{transform:scale(1.32);filter:brightness(1.08);position:relative;z-index:2}
+.ov-chart .line{stroke-dasharray:1;stroke-dashoffset:1;animation:ovDraw 1.15s cubic-bezier(.22,.8,.28,1) forwards;path-length:1}
+.ov-chart .bar{transform-box:fill-box;transform-origin:bottom;animation:ovGrow .55s cubic-bezier(.22,.8,.28,1) both;transition:opacity .15s,filter .15s}
+.ov-chart .bar:hover{filter:brightness(1.1)}
+.ov-chart .point{fill:var(--panel);stroke:var(--accent);stroke-width:2;opacity:0;transition:opacity .15s}
+.ov-chart .point:hover{opacity:1;r:4}
+.ov-chart .line:hover + .point{opacity:1}
+.ov-empty{transition:background .18s ease,color .18s ease}
+.ov-empty:hover{background:var(--panel3);color:var(--fg)}
+
 </style>
 <link rel="stylesheet" href="/dashboard-v3.css?v=18">
 <script>
@@ -5690,7 +5718,8 @@ function ovSvgLine(svgId, values, labels, opts){
     '<text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end">'+esc(opts.fmt?opts.fmt(val):Math.round(val))+'</text>';}
   let d=''; let started=false;
   pts.forEach((v,i)=>{if(!Number.isFinite(v))return; d+=(started?' L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);started=true;});
-  out+='<path class="line" d="'+d+'"/>';
+  out+='<path class="line" pathLength="1" d="'+d+'"/>';
+  pts.forEach((v,i)=>{if(Number.isFinite(v))out+='<circle class="point" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3"><title>'+esc(labs[i]||'')+': '+esc((opts.fmt?opts.fmt(v):v))+'</title></circle>';});
   const step=Math.max(1,Math.ceil(pts.length/7));
   for(let i=0;i<pts.length;i+=step){out+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle">'+esc(labs[i]||'')+'</text>';}
   out+='<text x="'+(L-7)+'" y="'+(T+8)+'" text-anchor="end">'+esc(opts.unit||'')+'</text>';
@@ -5705,7 +5734,7 @@ function ovSvgBars(svgId, values, labels, opts){
   let out='';
   for(let i=0;i<=4;i++){const yy=T+(H-T-B)*i/4;out+='<line class="grid" x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'"/><text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end">'+esc(fmtCompact(max*(1-i/4),true))+'</text>';}
   const bw=Math.max(2,(W-L-R)/Math.max(1,pts.length)-4);
-  pts.forEach((v,i)=>{const bh=(H-T-B)*Math.max(0,v)/max;const xx=L+i*((W-L-R)/Math.max(1,pts.length))+(W-L-R)/(Math.max(1,pts.length)*2)-bw/2;out+='<rect class="bar" x="'+xx.toFixed(1)+'" y="'+(H-B-bh).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2"><title>'+esc(labs[i]||'')+': '+esc(fmt(v))+'</title></rect>';});
+  pts.forEach((v,i)=>{const bh=(H-T-B)*Math.max(0,v)/max;const xx=L+i*((W-L-R)/Math.max(1,pts.length))+(W-L-R)/(Math.max(1,pts.length)*2)-bw/2;out+='<rect class="bar" style="animation-delay:'+(i*22)+'ms" x="'+xx.toFixed(1)+'" y="'+(H-B-bh).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2"><title>'+esc(labs[i]||'')+': '+esc(fmt(v))+'</title></rect>';});
   const step=Math.max(1,Math.ceil(pts.length/7));
   for(let i=0;i<pts.length;i+=step){out+='<text x="'+(L+i*((W-L-R)/Math.max(1,pts.length))+(W-L-R)/(Math.max(1,pts.length)*2))+'" y="'+(H-8)+'" text-anchor="middle">'+esc(labs[i]||'')+'</text>';}
   svg.innerHTML=out;
@@ -5795,6 +5824,7 @@ async function ovLoadCache(){
   ovSvgLine('ovCacheTrend',rates,labels,{min:0,max:100,unit:'%',fmt:v=>Math.round(v)+'%'});
 }
 document.addEventListener('DOMContentLoaded',function(){if(document.getElementById('ovRequests')){ovSetDatesForRange('7d');}});
+document.addEventListener('change',function(e){if(!e.target||!e.target.id)return;if(e.target.id==='ovDateFrom'||e.target.id==='ovDateTo'){ovRange='custom';['ovRToday','ovR7','ovR30','ovRMonth','ovRAll','ovRCustom'].forEach(function(id){var b=document.getElementById(id);if(b)b.classList.remove('active')});var c=document.getElementById('ovRCustom');if(c)c.classList.add('active');ovLoad();}});
 
 </script>
 </body>

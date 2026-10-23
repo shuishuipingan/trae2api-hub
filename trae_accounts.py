@@ -1834,6 +1834,12 @@ class AccountPool(object):
                 except Exception as exc:
                     self.log("账号构造失败 %s: %s" % (name, exc), level="WARN")
                     continue
+                now_ts = _now()
+                if account.cooldown_until and account.cooldown_until <= now_ts:
+                    account.cooldown_until = 0.0
+                    account.breaker_until = 0.0
+                    account.fails = 0
+                    account.last_error = ""
                 self.accounts.append(account)
                 self._apply_egress(account)
             self.log("已装载 %d 个账号（%s）" % (len(self.accounts), self.dir))

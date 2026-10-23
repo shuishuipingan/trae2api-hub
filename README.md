@@ -378,7 +378,7 @@ python _diag_gateway.py --chat
 
 ---
 
-## Agent 通道（SOLO，1.4.0）
+## Agent 通道（SOLO，1.4.1）
 
 CN 的 SOLO/Agent 模型通过纯 HTTP 通道执行：
 
