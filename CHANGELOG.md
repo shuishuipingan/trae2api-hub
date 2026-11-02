@@ -1,3 +1,25 @@
+## [Unreleased]
+
+### 🐛 问题修复
+
+- SOLO 通道（Agent 模型）遇到上游 `progress_notice` 的字符串 data 帧时抛
+  `AttributeError: 'str' object has no attribute 'get'`，请求 502（实测 kimi-k3 连续 8 次失败 4 次）。
+- 带 `tools` 的请求统一回 4001：上游 `FunctionDefinition.tools[].function.parameters` 要 string，
+  网关直接送 OpenAI 的 dict。
+
+### ✨ 新增功能
+
+- SOLO 通道支持工具调用：上游 `tool_calls` 增量帧按 index 聚合，回填标准 OpenAI
+  `tool_calls`（非流式）与 `delta.tool_calls`（流式），`finish_reason` 相应改为 `tool_calls`。
+- SOLO 通道支持多轮工具往返：保留 `assistant.tool_calls` 消息，并给 `tool` 回执补上
+  `tool_call_id` + `name`（name 由历史 `assistant.tool_calls` 的 id→name 映射）。
+  修复第二轮回灌时报 `4027 tool_call_id is not found ... tool name: ''`。
+
+### ✅ 测试
+
+- `_test_trae.py` 新增 [6] SOLO 通道分组：非对象 data 帧、tools.parameters 归一、
+  tool_calls 聚合、工具消息保留与各类缺字段报错，共 26 项断言。
+
 ## [1.1.5] - 2026-10-22
 
 ### ✨ 新增功能
