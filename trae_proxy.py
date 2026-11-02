@@ -5745,6 +5745,52 @@ def trae_auth_headers(account, realm, sse=True, extra=None):
     return headers
 
 
+def _solo_data_object(line):
+    """一行 SSE 文本 -> data 里的 JSON 对象；非对象帧返回 None。
+
+    上游排队时会先发 `event:progress_notice` + `data:"Processing_<ts>"`，data 部分是
+    JSON 字符串。旧实现把 json.loads 的结果直接当 dict 用（event.get(...)），会抛
+    AttributeError: 'str' object has no attribute 'get'，把整个请求变成 502。
+    """
+    text = str(line or "").strip()
+    if not text.startswith("data:"):
+        return None
+    raw = text[5:].strip()
+    if not raw or raw == "[DONE]":
+        return None
+    try:
+        event = json.loads(raw)
+    except Exception:
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def _solo_tools(payload):
+    """调用方 tools -> 上游 SOLO tools。
+
+    上游 FunctionDefinition.tools[].function.parameters 是 string；直接把 OpenAI 的
+    dict 发过去会 4001: json: cannot unmarshal object into Go struct field
+    FunctionDefinition.tools.function.parameters of type string。
+    """
+    tools = payload.get("tools")
+    if not isinstance(tools, list) or not tools:
+        return []
+    out = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        fn = tool.get("function")
+        if not isinstance(fn, dict):
+            out.append(tool)
+            continue
+        fn = dict(fn)
+        params = fn.get("parameters")
+        if isinstance(params, (dict, list)):
+            fn["parameters"] = json.dumps(params, ensure_ascii=False)
+        out.append(dict(tool, function=fn))
+    return out
+
+
 def trae_solo_chat(account, payload, timeout=180):
     """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite).
 
@@ -5814,8 +5860,9 @@ def trae_solo_chat(account, payload, timeout=180):
         "model": model,
         "max_tokens": int(payload.get("max_tokens") or 1000000),
     }
-    if isinstance(payload.get("tools"), list) and payload["tools"]:
-        body["tools"] = payload["tools"]
+    tools = _solo_tools(payload)
+    if tools:
+        body["tools"] = tools
     req = urllib.request.Request(
         "https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat",
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -5831,15 +5878,8 @@ def trae_solo_chat(account, payload, timeout=180):
     usage = {}
     try:
         for raw_line in resp:
-            line = raw_line.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            raw = line[5:].strip()
-            if not raw or raw == "[DONE]":
-                continue
-            try:
-                event = json.loads(raw)
-            except Exception:
+            event = _solo_data_object(raw_line.decode("utf-8", "replace"))
+            if event is None:
                 continue
             if event.get("code") not in (None, 0):
                 raise RuntimeError("solo error %s: %s" % (event.get("code"), event.get("message") or event.get("msg") or ""))
