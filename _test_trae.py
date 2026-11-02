@@ -1101,11 +1101,144 @@ def test_solo_channel():
 
         _rejects_slots({0: {"id": "x", "name": "f", "arguments": ""}},
                        "tool_calls 缺 arguments 报错（不伪造 {}）")
-        _rejects_slots({0: {"id": "x", "name": "", "arguments": "{}"}},
-                       "tool_calls 缺 name 报错")
+        _rejects_slots({0: {"id": "x", "name": "f", "arguments": '{"city":'}},
+                       "arguments 截断报错")
+        _rejects_slots({0: {"id": "x", "name": "f", "arguments": "[1,2]"}},
+                       "arguments 不是对象报错")
         check("没有工具帧时返回空列表", tool_calls_of({}) == [])
     else:
         skip("tool_calls 帧聚合", "_solo_tool_calls 不存在")
+
+    # ---- 集成级：真跑 trae_solo_chat（mock urllib）与响应出口 ----
+    solo_chat = getattr(proxy, "_solo_chat_for_tests", None) or getattr(proxy, "trae_solo_chat", None)
+    handler_cls = getattr(proxy, "Handler", None)
+    if callable(solo_chat):
+        class _FakeResp(object):
+            def __init__(self, lines):
+                self._lines = [(line + "\n").encode("utf-8") for line in lines]
+                self.closed = False
+
+            def __iter__(self):
+                return iter(self._lines)
+
+            def close(self):
+                self.closed = True
+
+        import types as _types
+        real_urlopen = proxy.urllib.request.urlopen
+        real_pool = getattr(proxy, "POOL", None)
+        account = _types.SimpleNamespace(
+            token="tok", uid="1001",
+            extra={"device_id": "1234567890123456", "machine_id": "a" * 64})
+
+        def _run(lines, payload):
+            proxy.urllib.request.urlopen = lambda req, timeout=None: _FakeResp(lines)   # noqa: E731
+            try:
+                return solo_chat(account, payload)
+            finally:
+                proxy.urllib.request.urlopen = real_urlopen
+
+        try:
+            base = {"model": "kimi-k3", "messages": [{"role": "user", "content": "hi"}]}
+            out = _run([
+                "event:progress_notice",
+                'data:"Processing_1793636999"',
+                'data:{"response":"","tool_calls":[{"index":0,"id":"get_weather_0_abc",'
+                '"type":"function","function_call":{"name":"get_weather","arguments":"{\\"city\\":"}}]}',
+                'data:{"response":"","tool_calls":[{"index":0,"id":"","type":"",'
+                '"function_call":{"name":"","arguments":"\\"北京\\"}"}}]}',
+                'data:{"finish_reason":"stop"}',
+            ], dict(base))
+            calls = out.get("tool_calls") or []
+            check("集成：交错帧下 tool_calls 聚合正确",
+                  len(calls) == 1 and calls[0]["function"]["arguments"] == '{"city":"北京"}', calls)
+            check("集成：finish_reason 改成 tool_calls", out["finish_reason"] == "tool_calls")
+
+            def _expect_error(lines, label, payload=None):
+                try:
+                    _run(lines, dict(payload or base))
+                except RuntimeError:
+                    check(label, True)
+                except Exception as exc:            # noqa: BLE001
+                    check(label, False, "%s: %s" % (type(exc).__name__, exc))
+                else:
+                    check(label, False, "没有报错")
+
+            _expect_error([
+                'data:{"tool_calls":[{"index":0,"id":"x","function_call":'
+                '{"name":"get_weather","arguments":"{\\"city\\":"}}]}',
+                'data:{"finish_reason":"stop"}',
+            ], "集成：截断 arguments 报错")
+            _expect_error([
+                'data:{"tool_calls":[{"index":0,"id":"x","function_call":'
+                '{"name":"get_weather","arguments":"{\\"city\\":\\"北京\\"}"}}]}',
+                'data:{"finish_reason":"length"}',
+            ], "集成：finish_reason=length 报错")
+            _expect_error(['data:{"finish_reason":"stop"}'], "集成：空内容报错")
+        finally:
+            proxy.urllib.request.urlopen = real_urlopen
+            if real_pool is not None:
+                proxy.POOL = real_pool
+
+        # 响应出口：非流式 message / 流式 delta 都要带 tool_calls
+        if handler_cls is not None:
+            class _FakePool(object):
+                accounts = [account]
+
+                def pick(self, realm=None, **kwargs):
+                    return account
+
+            real_pool = getattr(proxy, "POOL", None)
+            real_chat = solo_chat
+            try:
+                proxy.POOL = _FakePool()
+                proxy.trae_solo_chat = lambda acc, payload: {
+                    "content": "", "reasoning": "",
+                    "tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                                    "function": {"name": "get_weather",
+                                                 "arguments": '{"city":"北京"}'}}],
+                    "finish_reason": "tool_calls",
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+                    "model": "kimi-k3",
+                }
+                inst = object.__new__(handler_cls)
+                captured = []
+                inst._sse_begin = lambda: None
+                inst._sse_end = lambda: None
+                inst._sse_write = lambda data: captured.append(data)
+                inst._json = lambda code, payload: captured.append(("json", code, payload))
+                inst._error = lambda code, msg, kind=None: captured.append(("error", code, msg))
+
+                inst._handle_agent_solo({"model": "kimi-k3", "stream": False,
+                                         "messages": [{"role": "user", "content": "hi"}]})
+                body = next((c[2] for c in captured if isinstance(c, tuple) and c[0] == "json"), {})
+                msg = ((body.get("choices") or [{}])[0].get("message") or {})
+                check("出口：非流式返回 tool_calls",
+                      bool(msg.get("tool_calls")) and msg["tool_calls"][0]["id"] == "call_1", msg)
+                check("出口：非流式 finish_reason=tool_calls",
+                      ((body.get("choices") or [{}])[0].get("finish_reason")) == "tool_calls")
+
+                captured[:] = []
+                inst._handle_agent_solo({"model": "kimi-k3", "stream": True,
+                                         "messages": [{"role": "user", "content": "hi"}]})
+                blob = b"".join(c for c in captured if isinstance(c, bytes)).decode("utf-8", "replace")
+                frames = [line[5:].strip() for line in blob.splitlines()
+                          if line.startswith("data:") and line[5:].strip() != "[DONE]"]
+                delta = {}
+                for frame in frames:
+                    payload = json.loads(frame)
+                    delta.update(((payload.get("choices") or [{}])[0].get("delta") or {}))
+                check("出口：流式 delta 带 tool_calls",
+                      bool(delta.get("tool_calls")) and delta["tool_calls"][0]["id"] == "call_1", delta)
+                check("出口：流式带 [DONE]", "[DONE]" in blob)
+            finally:
+                proxy.trae_solo_chat = real_chat
+                if real_pool is not None:
+                    proxy.POOL = real_pool
+        else:
+            skip("出口：非流式返回 tool_calls", "Handler 不存在")
+    else:
+        skip("集成：交错帧下 tool_calls 聚合正确", "trae_solo_chat 不存在")
 
 
 # [7] Anthropic 工具协议 · trae_anthropic

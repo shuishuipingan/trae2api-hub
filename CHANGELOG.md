@@ -14,6 +14,8 @@
 - SOLO 通道支持多轮工具往返：保留 `assistant.tool_calls` 消息，并给 `tool` 回执补上
   `tool_call_id` + `name`（name 由历史 `assistant.tool_calls` 的 id→name 映射）。
   修复第二轮回灌时报 `4027 tool_call_id is not found ... tool name: ''`。
+- 工具调用严格校验：`arguments` 必须是**完整 JSON 对象**（截断/畸形直接报错，不自动修复）；
+  上游 `finish_reason` 不是 `stop`（如 `length` 截断）时不再包装成可执行的 `tool_calls`。
 
 ### ✅ 测试
 

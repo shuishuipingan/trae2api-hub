@@ -5882,6 +5882,14 @@ def _solo_tool_calls(slots):
         arguments = str(slot.get("arguments") or "")
         if not arguments:
             raise RuntimeError("solo tool_calls 缺少 arguments（%s）" % name)
+        # 上游是增量拼接的 arguments；截断/畸形时绝不能当成可执行调用发下去
+        try:
+            parsed = json.loads(arguments)
+        except Exception:
+            raise RuntimeError("solo tool_calls 的 arguments 不是完整 JSON（%s）: %s"
+                               % (name, arguments[:120]))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("solo tool_calls 的 arguments 不是 JSON 对象（%s）" % name)
         out.append({
             "index": index,
             "id": str(slot.get("id") or "") or ("call_" + uuid.uuid4().hex[:24]),
@@ -6003,6 +6011,10 @@ def trae_solo_chat(account, payload, timeout=180):
     if not content and not tool_calls:
         raise RuntimeError("solo returned empty content")
     if tool_calls:
+        # 上游若在工具调用没走完就结束（长度截断 / 内容过滤 / 其它失败终止），
+        # 这些 tool_calls 不可执行，不能包装成 finish_reason=tool_calls 给下游。
+        if finish_reason not in ("stop", "tool_calls"):
+            raise RuntimeError("solo 终止原因 %s，tool_calls 可能不完整，拒绝返回" % finish_reason)
         finish_reason = "tool_calls"
     return {"content": content, "reasoning": "".join(reasoning_parts),
             "tool_calls": tool_calls,
