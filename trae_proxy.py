@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -5911,8 +5911,14 @@ def trae_solo_chat(account, payload, timeout=180):
         raise RuntimeError("account access token is empty")
     uid = str(getattr(account, "uid", "") or "").strip()
     extra = getattr(account, "extra", None) or {}
-    dev = str(extra.get("device_id") or os.environ.get("TRAE_DEVICE_ID") or "1149420231460112").strip()
-    mid = str(extra.get("machine_id") or os.environ.get("TRAE_MACHINE_ID") or "d979d81c1deda7a803cb6b76be69cff63b40dd24ea60d3fabbd865607f7ee695").strip()
+    try:
+        import trae_fingerprint as _fp
+        _fallback_dev = _fp.trae_device_id(uid)
+        _fallback_mid = _fp.trae_machine_id(uid)
+    except Exception:
+        _fallback_dev, _fallback_mid = uid, ""
+    dev = str(extra.get("device_id") or os.environ.get("TRAE_DEVICE_ID") or _fallback_dev).strip()
+    mid = str(extra.get("machine_id") or os.environ.get("TRAE_MACHINE_ID") or _fallback_mid).strip()
     headers = {
         "Accept": "text/event-stream",
         "Content-Type": "application/json",
