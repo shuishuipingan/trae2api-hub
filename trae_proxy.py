@@ -70,7 +70,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
