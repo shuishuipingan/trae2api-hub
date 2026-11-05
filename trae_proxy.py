@@ -5745,6 +5745,160 @@ def trae_auth_headers(account, realm, sse=True, extra=None):
     return headers
 
 
+def _solo_data_object(line):
+    """一行 SSE 文本 -> data 里的 JSON 对象；非对象帧返回 None。
+
+    上游排队时会先发 `event:progress_notice` + `data:"Processing_<ts>"`，data 部分是
+    JSON 字符串。旧实现把 json.loads 的结果直接当 dict 用（event.get(...)），会抛
+    AttributeError: 'str' object has no attribute 'get'，把整个请求变成 502。
+    """
+    text = str(line or "").strip()
+    if not text.startswith("data:"):
+        return None
+    raw = text[5:].strip()
+    if not raw or raw == "[DONE]":
+        return None
+    try:
+        event = json.loads(raw)
+    except Exception:
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def _solo_tools(payload):
+    """调用方 tools -> 上游 SOLO tools。
+
+    上游 FunctionDefinition.tools[].function.parameters 是 string；直接把 OpenAI 的
+    dict 发过去会 4001: json: cannot unmarshal object into Go struct field
+    FunctionDefinition.tools.function.parameters of type string。
+    """
+    tools = payload.get("tools")
+    if not isinstance(tools, list) or not tools:
+        return []
+    out = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        fn = tool.get("function")
+        if not isinstance(fn, dict):
+            out.append(tool)
+            continue
+        fn = dict(fn)
+        params = fn.get("parameters")
+        if isinstance(params, (dict, list)):
+            fn["parameters"] = json.dumps(params, ensure_ascii=False)
+        out.append(dict(tool, function=fn))
+    return out
+
+
+def _solo_messages(payload):
+    """调用方 messages -> SOLO messages（保留工具往返需要的消息结构）。
+
+    两个上游约束：
+      · assistant 消息即使 content=null，只要带 tool_calls 也必须保留，否则上游把这轮
+        工具调用当成不存在，多轮往返 /v1/chat/completions 直接掉链子；
+      · tool 回执上游要 tool_call_id + name，而 OpenAI 的 tool 消息只有 tool_call_id，
+        所以先从历史 assistant.tool_calls 建 id -> name 映射。
+    """
+    id_to_name = {}
+    for item in payload.get("messages") or []:
+        if not isinstance(item, dict) or str(item.get("role") or "") != "assistant":
+            continue
+        for call in item.get("tool_calls") or []:
+            if not isinstance(call, dict):
+                continue
+            call_id = str(call.get("id") or "")
+            fn = call.get("function") if isinstance(call.get("function"), dict) else {}
+            if call_id and fn.get("name"):
+                id_to_name[call_id] = str(fn["name"])
+    messages = []
+    for item in payload.get("messages") or []:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "user")
+        if role == "developer":
+            role = "system"
+        content = item.get("content")
+        if isinstance(content, str):
+            blocks = [{"type": "text", "text": content}]
+        elif isinstance(content, list):
+            blocks = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    blocks.append({"type": "text", "text": str(part.get("text") or "")})
+        elif content is None:
+            blocks = []
+        else:
+            continue
+        message = {"role": role, "content": blocks}
+        if role == "assistant":
+            calls = []
+            for index, call in enumerate(item.get("tool_calls") or []):
+                if not isinstance(call, dict):
+                    continue
+                fn = call.get("function") if isinstance(call.get("function"), dict) else {}
+                name = str(fn.get("name") or "").strip()
+                if not name:
+                    raise RuntimeError("assistant.tool_calls 缺少 function.name，无法回灌上游")
+                arguments = fn.get("arguments")
+                if isinstance(arguments, (dict, list)):
+                    arguments = json.dumps(arguments, ensure_ascii=False)
+                calls.append({
+                    "index": index,
+                    "id": str(call.get("id") or ""),
+                    "type": "function",
+                    "function_call": {
+                        "name": name,
+                        "arguments": arguments if isinstance(arguments, str) else "",
+                        "partial_arguments": None,
+                        "namespace": None,
+                    },
+                })
+            if calls:
+                message["tool_calls"] = calls
+        elif role == "tool":
+            call_id = str(item.get("tool_call_id") or "").strip()
+            name = id_to_name.get(call_id) or str(item.get("name") or "").strip()
+            if not call_id:
+                raise RuntimeError("tool 消息缺少 tool_call_id，无法回灌上游")
+            if not name:
+                raise RuntimeError("无法把 tool_call_id 映射到工具名（历史里缺少对应 assistant.tool_calls）")
+            message["tool_call_id"] = call_id
+            message["name"] = name
+        if not message["content"] and not message.get("tool_calls"):
+            continue
+        messages.append(message)
+    return messages
+
+
+def _solo_tool_calls(slots):
+    """按 index 聚合的槽位 -> OpenAI tool_calls；字段不全直接报错，不伪造空参数。"""
+    out = []
+    for index in sorted(slots):
+        slot = slots[index]
+        name = str(slot.get("name") or "").strip()
+        if not name:
+            raise RuntimeError("solo tool_calls 缺少 function name（index=%s）" % index)
+        arguments = str(slot.get("arguments") or "")
+        if not arguments:
+            raise RuntimeError("solo tool_calls 缺少 arguments（%s）" % name)
+        # 上游是增量拼接的 arguments；截断/畸形时绝不能当成可执行调用发下去
+        try:
+            parsed = json.loads(arguments)
+        except Exception:
+            raise RuntimeError("solo tool_calls 的 arguments 不是完整 JSON（%s）: %s"
+                               % (name, arguments[:120]))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("solo tool_calls 的 arguments 不是 JSON 对象（%s）" % name)
+        out.append({
+            "index": index,
+            "id": str(slot.get("id") or "") or ("call_" + uuid.uuid4().hex[:24]),
+            "type": "function",
+            "function": {"name": name, "arguments": arguments},
+        })
+    return out
+
+
 def trae_solo_chat(account, payload, timeout=180):
     """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite).
 
@@ -5784,26 +5938,7 @@ def trae_solo_chat(account, payload, timeout=180):
     model = SOLO_MODEL_ALIASES.get(model, model)
     if model.endswith("-solo"):
         model = model[:-5]
-    messages = []
-    for m in payload.get("messages") or []:
-        if not isinstance(m, dict):
-            continue
-        role = str(m.get("role") or "user")
-        if role == "developer":
-            role = "system"
-        content = m.get("content")
-        if isinstance(content, str):
-            blocks = [{"type": "text", "text": content}]
-        elif isinstance(content, list):
-            blocks = []
-            for part in content:
-                if isinstance(part, dict) and part.get("type") == "text":
-                    blocks.append({"type": "text", "text": str(part.get("text") or "")})
-            if not blocks:
-                continue
-        else:
-            continue
-        messages.append({"role": role, "content": blocks})
+    messages = _solo_messages(payload)
     if not messages:
         raise RuntimeError("messages must not be empty")
     body = {
@@ -5814,8 +5949,9 @@ def trae_solo_chat(account, payload, timeout=180):
         "model": model,
         "max_tokens": int(payload.get("max_tokens") or 1000000),
     }
-    if isinstance(payload.get("tools"), list) and payload["tools"]:
-        body["tools"] = payload["tools"]
+    tools = _solo_tools(payload)
+    if tools:
+        body["tools"] = tools
     req = urllib.request.Request(
         "https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat",
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -5827,19 +5963,13 @@ def trae_solo_chat(account, payload, timeout=180):
         raise RuntimeError("solo HTTP %s: %s" % (exc.code, detail[:800]))
     text_parts = []
     reasoning_parts = []
+    tool_slots = {}
     finish_reason = "stop"
     usage = {}
     try:
         for raw_line in resp:
-            line = raw_line.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            raw = line[5:].strip()
-            if not raw or raw == "[DONE]":
-                continue
-            try:
-                event = json.loads(raw)
-            except Exception:
+            event = _solo_data_object(raw_line.decode("utf-8", "replace"))
+            if event is None:
                 continue
             if event.get("code") not in (None, 0):
                 raise RuntimeError("solo error %s: %s" % (event.get("code"), event.get("message") or event.get("msg") or ""))
@@ -5847,6 +5977,24 @@ def trae_solo_chat(account, payload, timeout=180):
                 text_parts.append(str(event["response"]))
             if event.get("reasoning_content"):
                 reasoning_parts.append(str(event["reasoning_content"]))
+            # 上游 tool_calls 是增量帧：首帧给 id/name，后续帧只给 arguments 片段
+            for call in event.get("tool_calls") or []:
+                if not isinstance(call, dict):
+                    continue
+                try:
+                    index = int(call.get("index") or 0)
+                except (TypeError, ValueError):
+                    index = 0
+                slot = tool_slots.setdefault(index, {"id": "", "name": "", "arguments": ""})
+                if call.get("id"):
+                    slot["id"] = str(call["id"])
+                fn = call.get("function_call")
+                if isinstance(fn, dict):
+                    if fn.get("name"):
+                        slot["name"] = str(fn["name"])
+                    fragment = fn.get("arguments")
+                    if isinstance(fragment, str) and fragment:
+                        slot["arguments"] += fragment
             if event.get("finish_reason"):
                 finish_reason = str(event["finish_reason"])
             if "prompt_tokens" in event:
@@ -5859,9 +6007,17 @@ def trae_solo_chat(account, payload, timeout=180):
         except Exception:
             pass
     content = "".join(text_parts)
-    if not content:
+    tool_calls = _solo_tool_calls(tool_slots)
+    if not content and not tool_calls:
         raise RuntimeError("solo returned empty content")
+    if tool_calls:
+        # 上游若在工具调用没走完就结束（长度截断 / 内容过滤 / 其它失败终止），
+        # 这些 tool_calls 不可执行，不能包装成 finish_reason=tool_calls 给下游。
+        if finish_reason not in ("stop", "tool_calls"):
+            raise RuntimeError("solo 终止原因 %s，tool_calls 可能不完整，拒绝返回" % finish_reason)
+        finish_reason = "tool_calls"
     return {"content": content, "reasoning": "".join(reasoning_parts),
+            "tool_calls": tool_calls,
             "finish_reason": finish_reason, "usage": usage,
             "model": model}
 
@@ -9878,11 +10034,19 @@ class Handler(BaseHTTPRequestHandler):
             result = trae_solo_chat(account, {**payload, "model": model})
         except Exception as exc:
             return self._error(502, "Trae SOLO upstream failed: %s" % exc, "upstream_error")
+        tool_calls = result.get("tool_calls") or []
         if payload.get("stream"):
             self._sse_begin()
             cid = "chatcmpl-" + uuid.uuid4().hex
+            delta = {"role": "assistant", "content": result["content"] or None}
+            if tool_calls:
+                delta["tool_calls"] = [
+                    {"index": i, "id": call["id"], "type": "function",
+                     "function": {"name": call["function"]["name"],
+                                  "arguments": call["function"]["arguments"]}}
+                    for i, call in enumerate(tool_calls)]
             chunk = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
-                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": result["content"]}, "finish_reason": None}]}
+                     "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
             self._sse_write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode("utf-8"))
             done = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
                     "choices": [{"index": 0, "delta": {}, "finish_reason": result["finish_reason"]}]}
@@ -9890,12 +10054,20 @@ class Handler(BaseHTTPRequestHandler):
             self._sse_write(b"data: [DONE]\n\n")
             self._sse_end()
             return
+        message = {"role": "assistant", "content": result["content"] or None,
+                   "reasoning_content": result["reasoning"]}
+        if tool_calls:
+            message["tool_calls"] = [
+                {"id": call["id"], "type": "function",
+                 "function": {"name": call["function"]["name"],
+                              "arguments": call["function"]["arguments"]}}
+                for call in tool_calls]
         return self._json(200, {
             "id": "chatcmpl-" + uuid.uuid4().hex,
             "object": "chat.completion",
             "created": int(time.time()),
             "model": model,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": result["content"], "reasoning_content": result["reasoning"]}, "finish_reason": result["finish_reason"]}],
+            "choices": [{"index": 0, "message": message, "finish_reason": result["finish_reason"]}],
             "usage": result["usage"] or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         })
 

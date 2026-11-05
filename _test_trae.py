@@ -983,10 +983,268 @@ def test_tool_markers():
 
 
 # ===========================================================================
-# [6] Anthropic 工具协议 · trae_anthropic
+# [6] SOLO 通道 · trae_proxy（消息/工具/SSE 解析）
+# ---------------------------------------------------------------------------
+def test_solo_channel():
+    section("[6] SOLO 通道 · trae_proxy（消息 / 工具 / SSE 解析）")
+    proxy, err = load("trae_proxy")
+    if proxy is None:
+        for label in ("非对象 data 帧被跳过", "对象 data 帧正常解析",
+                      "tools.parameters 转字符串", "assistant.tool_calls 保留",
+                      "tool 回执补 name", "tool 回执缺 id 报错",
+                      "tool 回执映射不到 name 报错", "tool_calls 帧聚合",
+                      "tool_calls 缺 arguments 报错"):
+            skip(label, "trae_proxy 未就绪：%s" % err)
+        return
+
+    data_object = getattr(proxy, "_solo_data_object", None)
+    tools_of = getattr(proxy, "_solo_tools", None)
+    messages_of = getattr(proxy, "_solo_messages", None)
+    tool_calls_of = getattr(proxy, "_solo_tool_calls", None)
+
+    if callable(data_object):
+        # 上游排队时会先发 data:"Processing_<ts>" 字符串帧；当对象用会 AttributeError -> 502
+        check("非对象 data 帧被跳过", data_object('data:"Processing_1793636999"') is None)
+        check("对象 data 帧正常解析",
+              data_object('data:{"response":"hi"}') == {"response": "hi"})
+        check("数组 data 帧被跳过", data_object('data:[1,2]') is None)
+        check("[DONE] 被跳过", data_object("data:[DONE]") is None)
+        check("非 data 行被跳过", data_object("event:output") is None)
+        check("坏 JSON 被跳过", data_object("data:{oops") is None)
+    else:
+        skip("非对象 data 帧被跳过", "_solo_data_object 不存在")
+
+    if callable(tools_of):
+        normalized = tools_of({"tools": [{
+            "type": "function",
+            "function": {"name": "get_weather", "description": "d",
+                         "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}},
+        }]})
+        params = normalized[0]["function"]["parameters"] if normalized else None
+        check("tools.parameters 转字符串", isinstance(params, str), type(params).__name__)
+        check("tools.parameters 仍是合法 JSON",
+              isinstance(params, str) and json.loads(params).get("type") == "object")
+        already = tools_of({"tools": [{"type": "function",
+                                       "function": {"name": "f", "parameters": '{"type":"object"}'}}]})
+        check("已是字符串的 parameters 原样保留",
+              already and already[0]["function"]["parameters"] == '{"type":"object"}')
+        check("无 function 的工具原样透传",
+              tools_of({"tools": [{"type": "web_search"}]}) == [{"type": "web_search"}])
+        check("没有 tools 时返回空列表", tools_of({}) == [])
+    else:
+        skip("tools.parameters 转字符串", "_solo_tools 不存在")
+
+    if callable(messages_of):
+        msgs = messages_of({"messages": [
+            {"role": "user", "content": "北京天气？"},
+            {"role": "assistant", "content": None,
+             "tool_calls": [{"id": "call_1", "type": "function",
+                             "function": {"name": "get_weather", "arguments": '{"city":"北京"}'}}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "22C"},
+        ]})
+        assistant = next((m for m in msgs if m.get("role") == "assistant"), {})
+        tool_msg = next((m for m in msgs if m.get("role") == "tool"), {})
+        calls = assistant.get("tool_calls") or []
+        check("assistant.tool_calls 保留（content=null 也不丢）", bool(assistant))
+        check("assistant.tool_calls 转成上游 function_call 形状",
+              calls and calls[0]["function_call"]["name"] == "get_weather"
+              and calls[0]["function_call"]["arguments"] == '{"city":"北京"}', calls)
+        check("tool 回执补 name（由 tool_call_id 映射）",
+              tool_msg.get("name") == "get_weather", tool_msg)
+        check("tool 回执保留 tool_call_id", tool_msg.get("tool_call_id") == "call_1", tool_msg)
+
+        def _rejects(payload, label):
+            try:
+                messages_of(payload)
+            except RuntimeError:
+                check(label, True)
+            except Exception as exc:            # noqa: BLE001
+                check(label, False, "%s: %s" % (type(exc).__name__, exc))
+            else:
+                check(label, False, "没有报错")
+
+        _rejects({"messages": [{"role": "tool", "content": "x"}]}, "tool 回执缺 id 报错")
+        _rejects({"messages": [{"role": "user", "content": "x"},
+                               {"role": "tool", "tool_call_id": "unknown", "content": "y"}]},
+                 "tool 回执映射不到 name 报错")
+        _rejects({"messages": [{"role": "assistant", "content": None,
+                                "tool_calls": [{"id": "c", "type": "function",
+                                                "function": {"arguments": "{}"}}]}]},
+                 "assistant.tool_calls 缺 name 报错")
+        check("纯文本消息仍是 text block",
+              messages_of({"messages": [{"role": "user", "content": "hi"}]})
+              == [{"role": "user", "content": [{"type": "text", "text": "hi"}]}])
+    else:
+        skip("assistant.tool_calls 保留", "_solo_messages 不存在")
+
+    if callable(tool_calls_of):
+        slots = {
+            0: {"id": "get_weather_0_abc", "name": "get_weather", "arguments": '{"city":"北京"}'},
+            1: {"id": "", "name": "get_time", "arguments": "{}"},
+        }
+        calls = tool_calls_of(slots)
+        check("tool_calls 帧按 index 聚合", len(calls) == 2, calls)
+        check("tool_calls 保留首帧 id", calls and calls[0]["id"] == "get_weather_0_abc")
+        check("tool_calls 缺 id 时补一个 call_ 前缀", calls[1]["id"].startswith("call_"), calls[1])
+        check("tool_calls 的 arguments 原样透传",
+              calls[0]["function"]["arguments"] == '{"city":"北京"}')
+
+        def _rejects_slots(slots, label):
+            try:
+                tool_calls_of(slots)
+            except RuntimeError:
+                check(label, True)
+            except Exception as exc:            # noqa: BLE001
+                check(label, False, "%s: %s" % (type(exc).__name__, exc))
+            else:
+                check(label, False, "没有报错")
+
+        _rejects_slots({0: {"id": "x", "name": "f", "arguments": ""}},
+                       "tool_calls 缺 arguments 报错（不伪造 {}）")
+        _rejects_slots({0: {"id": "x", "name": "f", "arguments": '{"city":'}},
+                       "arguments 截断报错")
+        _rejects_slots({0: {"id": "x", "name": "f", "arguments": "[1,2]"}},
+                       "arguments 不是对象报错")
+        check("没有工具帧时返回空列表", tool_calls_of({}) == [])
+    else:
+        skip("tool_calls 帧聚合", "_solo_tool_calls 不存在")
+
+    # ---- 集成级：真跑 trae_solo_chat（mock urllib）与响应出口 ----
+    solo_chat = getattr(proxy, "_solo_chat_for_tests", None) or getattr(proxy, "trae_solo_chat", None)
+    handler_cls = getattr(proxy, "Handler", None)
+    if callable(solo_chat):
+        class _FakeResp(object):
+            def __init__(self, lines):
+                self._lines = [(line + "\n").encode("utf-8") for line in lines]
+                self.closed = False
+
+            def __iter__(self):
+                return iter(self._lines)
+
+            def close(self):
+                self.closed = True
+
+        import types as _types
+        real_urlopen = proxy.urllib.request.urlopen
+        real_pool = getattr(proxy, "POOL", None)
+        account = _types.SimpleNamespace(
+            token="tok", uid="1001",
+            extra={"device_id": "1234567890123456", "machine_id": "a" * 64})
+
+        def _run(lines, payload):
+            proxy.urllib.request.urlopen = lambda req, timeout=None: _FakeResp(lines)   # noqa: E731
+            try:
+                return solo_chat(account, payload)
+            finally:
+                proxy.urllib.request.urlopen = real_urlopen
+
+        try:
+            base = {"model": "kimi-k3", "messages": [{"role": "user", "content": "hi"}]}
+            out = _run([
+                "event:progress_notice",
+                'data:"Processing_1793636999"',
+                'data:{"response":"","tool_calls":[{"index":0,"id":"get_weather_0_abc",'
+                '"type":"function","function_call":{"name":"get_weather","arguments":"{\\"city\\":"}}]}',
+                'data:{"response":"","tool_calls":[{"index":0,"id":"","type":"",'
+                '"function_call":{"name":"","arguments":"\\"北京\\"}"}}]}',
+                'data:{"finish_reason":"stop"}',
+            ], dict(base))
+            calls = out.get("tool_calls") or []
+            check("集成：交错帧下 tool_calls 聚合正确",
+                  len(calls) == 1 and calls[0]["function"]["arguments"] == '{"city":"北京"}', calls)
+            check("集成：finish_reason 改成 tool_calls", out["finish_reason"] == "tool_calls")
+
+            def _expect_error(lines, label, payload=None):
+                try:
+                    _run(lines, dict(payload or base))
+                except RuntimeError:
+                    check(label, True)
+                except Exception as exc:            # noqa: BLE001
+                    check(label, False, "%s: %s" % (type(exc).__name__, exc))
+                else:
+                    check(label, False, "没有报错")
+
+            _expect_error([
+                'data:{"tool_calls":[{"index":0,"id":"x","function_call":'
+                '{"name":"get_weather","arguments":"{\\"city\\":"}}]}',
+                'data:{"finish_reason":"stop"}',
+            ], "集成：截断 arguments 报错")
+            _expect_error([
+                'data:{"tool_calls":[{"index":0,"id":"x","function_call":'
+                '{"name":"get_weather","arguments":"{\\"city\\":\\"北京\\"}"}}]}',
+                'data:{"finish_reason":"length"}',
+            ], "集成：finish_reason=length 报错")
+            _expect_error(['data:{"finish_reason":"stop"}'], "集成：空内容报错")
+        finally:
+            proxy.urllib.request.urlopen = real_urlopen
+            if real_pool is not None:
+                proxy.POOL = real_pool
+
+        # 响应出口：非流式 message / 流式 delta 都要带 tool_calls
+        if handler_cls is not None:
+            class _FakePool(object):
+                accounts = [account]
+
+                def pick(self, realm=None, **kwargs):
+                    return account
+
+            real_pool = getattr(proxy, "POOL", None)
+            real_chat = solo_chat
+            try:
+                proxy.POOL = _FakePool()
+                proxy.trae_solo_chat = lambda acc, payload: {
+                    "content": "", "reasoning": "",
+                    "tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                                    "function": {"name": "get_weather",
+                                                 "arguments": '{"city":"北京"}'}}],
+                    "finish_reason": "tool_calls",
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+                    "model": "kimi-k3",
+                }
+                inst = object.__new__(handler_cls)
+                captured = []
+                inst._sse_begin = lambda: None
+                inst._sse_end = lambda: None
+                inst._sse_write = lambda data: captured.append(data)
+                inst._json = lambda code, payload: captured.append(("json", code, payload))
+                inst._error = lambda code, msg, kind=None: captured.append(("error", code, msg))
+
+                inst._handle_agent_solo({"model": "kimi-k3", "stream": False,
+                                         "messages": [{"role": "user", "content": "hi"}]})
+                body = next((c[2] for c in captured if isinstance(c, tuple) and c[0] == "json"), {})
+                msg = ((body.get("choices") or [{}])[0].get("message") or {})
+                check("出口：非流式返回 tool_calls",
+                      bool(msg.get("tool_calls")) and msg["tool_calls"][0]["id"] == "call_1", msg)
+                check("出口：非流式 finish_reason=tool_calls",
+                      ((body.get("choices") or [{}])[0].get("finish_reason")) == "tool_calls")
+
+                captured[:] = []
+                inst._handle_agent_solo({"model": "kimi-k3", "stream": True,
+                                         "messages": [{"role": "user", "content": "hi"}]})
+                blob = b"".join(c for c in captured if isinstance(c, bytes)).decode("utf-8", "replace")
+                frames = [line[5:].strip() for line in blob.splitlines()
+                          if line.startswith("data:") and line[5:].strip() != "[DONE]"]
+                delta = {}
+                for frame in frames:
+                    payload = json.loads(frame)
+                    delta.update(((payload.get("choices") or [{}])[0].get("delta") or {}))
+                check("出口：流式 delta 带 tool_calls",
+                      bool(delta.get("tool_calls")) and delta["tool_calls"][0]["id"] == "call_1", delta)
+                check("出口：流式带 [DONE]", "[DONE]" in blob)
+            finally:
+                proxy.trae_solo_chat = real_chat
+                if real_pool is not None:
+                    proxy.POOL = real_pool
+        else:
+            skip("出口：非流式返回 tool_calls", "Handler 不存在")
+    else:
+        skip("集成：交错帧下 tool_calls 聚合正确", "trae_solo_chat 不存在")
+
+
+# [7] Anthropic 工具协议 · trae_anthropic
 # ===========================================================================
 def test_anthropic():
-    section("[6] Anthropic 工具协议 · trae_anthropic")
+    section("[7] Anthropic 工具协议 · trae_anthropic")
     ant, err = load("trae_anthropic")
     if ant is None:
         for label in ("tools 映射", "tool_use -> tool_calls", "usage 守恒",
@@ -1166,10 +1424,10 @@ def test_anthropic():
 
 
 # ===========================================================================
-# [7] 加密原语 · trae_sign（Desktop 凭证解密依赖）
+# [8] 加密原语 · trae_sign（Desktop 凭证解密依赖）
 # ===========================================================================
 def test_crypto():
-    section("[7] 加密原语 · trae_sign")
+    section("[8] 加密原语 · trae_sign")
     sign, err = load("trae_sign")
     if sign is None:
         skip("AES-128-CBC NIST KAT", "trae_sign 未就绪（doudou / task-1）：" + err)
@@ -1214,7 +1472,7 @@ def test_crypto():
 
 
 # ===========================================================================
-# [8] 部署面静态检查
+# [9] 部署面静态检查
 # ===========================================================================
 DEPLOY_FILES = ("Dockerfile", "docker-compose.yml", ".dockerignore",
                 "start-trae2api-hub.bat", "start-trae2api-hub.sh",
@@ -1273,7 +1531,7 @@ def _lint_dockerfile(text):
 
 
 def test_deploy():
-    section("[8] 部署面静态检查")
+    section("[9] 部署面静态检查")
     texts = {}
     for name in DEPLOY_FILES:
         path = os.path.join(ROOT, name)
@@ -1354,10 +1612,10 @@ def test_deploy():
 
 
 # ===========================================================================
-# [9] 诊断脚本冒烟
+# [10] 诊断脚本冒烟
 # ===========================================================================
 def test_diag():
-    section("[9] 诊断脚本冒烟 · _diag_gateway.py")
+    section("[10] 诊断脚本冒烟 · _diag_gateway.py")
     diag, err = load("_diag_gateway")
     if diag is None:
         skip("guard_url 白名单", "_diag_gateway 未就绪：" + err)
@@ -1415,6 +1673,7 @@ def main():
         test_catalog()
         test_routing()
         test_tool_markers()
+        test_solo_channel()
         test_anthropic()
         test_crypto()
         test_deploy()
