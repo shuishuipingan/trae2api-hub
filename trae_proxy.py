@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """Trae -> OpenAI-compatible reverse proxy (CN + Intl dual realm).
 
@@ -58,6 +59,19 @@ import trae_catalog
 import trae_fingerprint
 import trae_probe
 import trae_settings
+import trae_admin
+import trae_routing
+import trae_activity
+import trae_pricing
+import trae_cache
+import trae_stats
+
+I18N_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "i18n")
+I18N_FILE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,31}\.json$")
+START_TIME = time.time()
+FULL_PRICE_PROMPT_MIN = int(os.environ.get("TRAE_FULL_PRICE_PROMPT_MIN") or 100000)
+_USAGE_REPORT_CACHE = trae_cache.JsonResultCache()
+_ADMIN_JOBS = trae_admin.JobRegistry()
 from trae_accounts import (get_realm_config, gateway_candidates, CLIENT_UA)
 from pathlib import Path
 
@@ -70,7 +84,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.4.3"
+VERSION = "1.5.0"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -9297,6 +9311,8 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if path.startswith("/diag"):
             return True
+        if path.startswith("/admin") or path.startswith("/pricing"):
+            return True
         if path.startswith("/update"):
             return True
         if path.startswith("/agents"):
@@ -9315,6 +9331,233 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    
+    @staticmethod
+    def _i18n_tiers_ok(data):
+        if not isinstance(data, dict):
+            return False
+        for k, v in data.items():
+            if k.startswith("@"):
+                continue
+            if not isinstance(v, (str, dict)):
+                return False
+        return True
+
+    @staticmethod
+    def _i18n_read(name):
+        if not name or not I18N_FILE_RE.match(name):
+            raise ValueError("invalid locale name")
+        abs_path = os.path.realpath(os.path.join(I18N_DIR, name))
+        root = os.path.realpath(I18N_DIR)
+        if os.path.dirname(abs_path) != root:
+            raise ValueError("locale path escapes the i18n folder")
+        try:
+            with open(abs_path, "rb") as fh:
+                body = fh.read()
+        except Exception:
+            raise ValueError("locale pack unreadable")
+        try:
+            data = json.loads(body.decode("utf-8"))
+        except Exception:
+            raise ValueError("locale pack is not valid JSON")
+        if not isinstance(data, dict):
+            raise ValueError("locale pack must be a JSON object")
+        if not Handler._i18n_tiers_ok(data):
+            raise ValueError("locale tiers must be string->string objects")
+        return abs_path, body, data
+
+    def _i18n_manifest(self):
+        packs = []
+        try:
+            names = sorted(os.listdir(I18N_DIR))
+        except Exception:
+            names = []
+        for name in names:
+            if not I18N_FILE_RE.match(name):
+                continue
+            try:
+                _, _, data = self._i18n_read(name)
+            except ValueError as exc:
+                continue
+            meta = data.get("@locale")
+            meta = dict(meta) if isinstance(meta, dict) else {}
+            meta["code"] = name[:-len(".json")]
+            meta.setdefault("name", meta["code"])
+            meta.setdefault("order", 100)
+            meta.setdefault("dir", "ltr")
+            try:
+                meta["order"] = int(meta["order"])
+            except Exception:
+                meta["order"] = 100
+            packs.append(meta)
+        packs.sort(key=lambda p: (p.get("order", 100), p.get("code", "")))
+        return self._json(200, {"default": "zh", "packs": packs})
+
+    def _i18n_pack(self, name):
+        try:
+            _, body, _ = self._i18n_read(name)
+        except ValueError:
+            return self._error(404, "no such locale pack", "invalid_request_error")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _admin_account_views(self):
+        return [a.public() for a in (POOL.accounts if POOL else [])]
+
+    def _handle_admin_get(self, path, query):
+        accounts = list(POOL.accounts) if POOL else []
+        if path == "/admin/overview":
+            stamp = trae_stats._usage_log_fingerprint()
+            metadata = tuple((a.uid, a.nickname, getattr(a, "group", ""), a.realm,
+                              bool(a.enabled), bool(a.token), a.cooldown_until,
+                              a.expired_at) for a in accounts)
+            now = time.time()
+            key = ("admin-overview", stamp, int(now//10), metadata)
+            result = _USAGE_REPORT_CACHE.get(key, lambda: trae_admin.build_overview(
+                trae_stats._iter_usage_rows_forward(now-6*3600-600), accounts, now=now), ttl=10,
+                valid=lambda: trae_stats._usage_log_fingerprint() == stamp)
+            rules = trae_routing.load_rules(ACCOUNTS_DIR) if hasattr(trae_routing, 'load_rules') else []
+            result.update(version=VERSION, realm=CURRENT_REALM,
+                          keys=sum(k.get("enabled", True) is not False for k in configured_keys()),
+                          models=len(fetch_models(CURRENT_REALM)),
+                          routing_rules=len(rules),
+                          uptime_seconds=max(0, int(now-START_TIME)))
+            return self._json(200, result)
+        if path == "/admin/groups":
+            return self._json(200, {"ok": True, "groups": trae_admin.groups_view(accounts),
+                                    "accounts": self._admin_account_views()})
+        if path == "/admin/routing":
+            try:
+                config = trae_routing.load_config(ACCOUNTS_DIR)
+            except ValueError as error:
+                return self._error(500, str(error), "configuration_error")
+            all_m = fetch_models("cn") + fetch_models("intl")
+            unique_m = []
+            seen_m = set()
+            for item in all_m:
+                if isinstance(item, tuple):
+                    mid = item[0]
+                    realm_val = item[1].get("realm", "cn") if isinstance(item[1], dict) else "cn"
+                elif isinstance(item, dict):
+                    mid = item.get("id") or item.get("model")
+                    realm_val = item.get("realm", "cn")
+                else:
+                    mid = str(item)
+                    realm_val = "cn"
+                if mid and mid not in seen_m:
+                    seen_m.add(mid)
+                    unique_m.append({"id": mid, "realm": realm_val})
+            return self._json(200, dict(config, ok=True,
+                                    models=unique_m,
+                                    strategies=list(trae_routing.STRATEGIES),
+                                    groups=trae_admin.groups_view(accounts),
+                                    accounts=self._admin_account_views()))
+        if path == "/admin/jobs":
+            value = _ADMIN_JOBS.get((query.get("id") or [""])[0])
+            if not value:
+                return self._error(404, "job not found", "invalid_request_error")
+            return self._json(200, {"ok": True, "job": value})
+        return self._error(404, "not found")
+
+    def _admin_test_account(self, account):
+        model = "Doubao-1.5-pro" if acc_realm(account) == "cn" else "gpt-4o"
+        started = time.time()
+        try:
+            response, used, _ = open_upstream({"model": model, "max_tokens": 32,
+                "messages": [{"role": "user", "content": "hi"}]},
+                target_realm=acc_realm(account))
+            with response:
+                obj = aggregate_stream(response, model, None)
+            return {"ok": True, "model": model, "elapsed_ms": int((time.time()-started)*1000)}
+        except Exception as error:
+            detail = str(error)
+            return {"ok": False, "model": model, "error": detail[:300]}
+
+    def _handle_admin(self, path, payload):
+        if not isinstance(payload, dict):
+            return self._error(400, "expected a JSON object", "invalid_request_error")
+        if path == "/admin/routing/save":
+            try:
+                config = trae_routing.save_config(ACCOUNTS_DIR,
+                    rules=payload.get("rules"), tiers=payload.get("tiers"),
+                    policy=payload.get("policy"), expected_revision=payload.get("revision"))
+            except ValueError as error:
+                return self._error(400, str(error), "invalid_request_error")
+            return self._json(200, dict(config, ok=True))
+        if path == "/admin/routing/preview":
+            key_id = str(payload.get("key_id") or "")
+            key = next((k for k in configured_keys() if k.get("id") == key_id), None)
+            if key_id and key is None:
+                return self._error(404, "API Key not found", "invalid_request_error")
+            try:
+                result = trae_routing.preview(ACCOUNTS_DIR, list(POOL.accounts) if POOL else [],
+                    str(payload.get("model") or "auto"), key=key,
+                    realm=(payload.get("realm") or (key or {}).get("realm") or CURRENT_REALM),
+                    fallback_realm=CURRENT_REALM,
+                    config=({"rules": trae_routing.normalize_rules(payload["draft"].get("rules", [])),
+                             "tiers": trae_routing.normalize_tiers(payload["draft"].get("tiers", [])),
+                             "policy": trae_routing.normalize_policy(payload["draft"].get("policy")),
+                             "configured": True, "board_enabled": True} if isinstance(payload.get("draft"), dict) else None))
+            except ValueError as error:
+                return self._error(400, str(error), "invalid_request_error")
+            return self._json(200, result)
+        if POOL is None:
+            return self._error(503, "account pool unavailable")
+        if path == "/admin/accounts/group":
+            uids = payload.get("uids")
+            if not isinstance(uids, list) or not uids or len(uids) > 500:
+                return self._error(400, "uids must contain 1..500 account ids", "invalid_request_error")
+            group = payload.get("group", "")
+            if not isinstance(group, str) or len(group.strip()) > 64 or any(ord(c) < 32 for c in group):
+                return self._error(400, "invalid account group", "invalid_request_error")
+            targets = [POOL.get(str(uid)) for uid in dict.fromkeys(uids)]
+            if any(a is None for a in targets):
+                return self._error(404, "account not found", "invalid_request_error")
+            for account in targets:
+                account.group = group.strip()
+                if hasattr(account, 'save'):
+                    account.save(ACCOUNTS_DIR)
+            return self._json(200, {"ok": True, "changed": len(targets),
+                                    "accounts": self._admin_account_views()})
+        if path == "/admin/groups/action":
+            if "group" not in payload or not isinstance(payload["group"], str):
+                return self._error(400, "group is required", "invalid_request_error")
+            group = payload["group"].strip()
+            action = str(payload.get("action") or "")
+            if action not in ("enable", "disable", "refresh", "test"):
+                return self._error(400, "unsupported group action", "invalid_request_error")
+            targets = [a for a in list(POOL.accounts) if getattr(a, "group", "") == group]
+            if not targets:
+                return self._error(404, "account group is empty", "invalid_request_error")
+            if action in ("enable", "disable"):
+                for account in targets:
+                    account.enabled = action == "enable"
+                    if hasattr(account, 'save'):
+                        account.save(ACCOUNTS_DIR)
+                return self._json(200, {"ok": True, "action": action, "group": group,
+                    "results": [{"uid": a.uid, "ok": True} for a in targets],
+                    "accounts": self._admin_account_views()})
+            def worker(account):
+                if action == "test":
+                    return self._admin_test_account(account)
+                if action == "refresh":
+                    ok = account.refresh()
+                    if hasattr(account, 'save'):
+                        account.save(ACCOUNTS_DIR)
+                    return {"ok": bool(ok), "error": account.last_error if not ok else ""}
+                return {"ok": False, "error": "unsupported action"}
+            try:
+                job_id = _ADMIN_JOBS.submit(action, group, targets, worker)
+            except RuntimeError as error:
+                return self._error(409, str(error), "conflict")
+            return self._json(202, {"ok": True, "action": action, "group": group,
+                                    "job_id": job_id, "job": _ADMIN_JOBS.get(job_id)})
+        return self._error(404, "not found")
+
     def do_GET(self):
         # #26：每个请求入口清空「本次实际出口」标注。self 在 keep-alive 连接上是
         # **复用**的，不清空的话后续非 chat 端点（/v1/models、/usage/*、/realm）
@@ -9329,6 +9572,39 @@ class Handler(BaseHTTPRequestHandler):
                                "invalid_request_error")
         if path in STATIC_ASSETS:
             return self._static_asset(*STATIC_ASSETS[path])
+        
+        if path.startswith("/admin/"):
+            return self._handle_admin_get(path, query)
+        if path == "/i18n/manifest":
+            return self._i18n_manifest()
+        if path.startswith("/i18n/"):
+            return self._i18n_pack(path[len("/i18n/"):])
+        if path == "/usage/stats":
+            req_range, req_since, req_until = range_query(query)
+            return self._json(200, trae_stats.cached_usage_report("stats",
+                range=req_range, since=req_since, until=req_until))
+        if path == "/pricing":
+            return self._json(200, {"prices": trae_pricing.DEFAULT_PRICES, "overrides": {}})
+        if path == "/usage/remaining":
+            return self._json(200, {"ok": True, "days_left": None, "daily_rate": 0, "active_accounts": len(POOL.accounts) if POOL else 0})
+        if path == "/accounts/activity":
+            limit = int((query.get("limit") or ["200"])[0]) if query.get("limit") else 200
+            rows = trae_activity.recent(USAGE_DIR, limit=limit)
+            return self._json(200, {"ok": True, "rows": rows, "count": len(rows)})
+        if path == "/accounts/credits/grants":
+            return self._json(200, {"ok": True, "rows": [], "count": 0})
+        if path == "/accounts/credits/usage":
+            return self._json(200, {"ok": True, "total": 0.0, "peak": 0.0, "days": []})
+        if path == "/update/plan":
+            return self._json(200, {"ok": True, "can_apply": False, "current": VERSION, "latest": VERSION, "apply_blocked_reasons": ["请在终端或使用 git pull 更新"]})
+        if path == "/agents/template":
+            try:
+                return self._json(200, trae_agents.template(
+                    str((query.get("client") or [""])[0]),
+                    str((query.get("base_url") or ["http://127.0.0.1:8791"])[0]),
+                    model=str((query.get("model") or ["auto"])[0])))
+            except Exception as exc:
+                return self._error(400, str(exc), "invalid_request_error")
         if path in ("/", "/dashboard", "/ui"):
             return self._dashboard()
         if path == "/panel/status":
@@ -10896,6 +11172,45 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, result)
 
     def do_POST(self):
+        self.realm_used = ""
+        self.realm_reason = ""
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
+
+        if path.startswith("/admin/"):
+            body = self._payload_or_error()
+            if body is None: return
+            return self._handle_admin(path, body)
+        if path == "/accounts/note":
+            body = self._payload_or_error()
+            if body is None: return
+            uid = str(body.get("uid") or "").strip()
+            note = str(body.get("note") or "").strip()
+            acc = POOL.get(uid) if POOL else None
+            if not acc: return self._error(404, "account not found")
+            acc.note = note
+            if hasattr(acc, 'save'): acc.save(ACCOUNTS_DIR)
+            return self._json(200, {"ok": True, "uid": uid, "note": note})
+        if path == "/accounts/checkin-when-disabled":
+            body = self._payload_or_error()
+            if body is None: return
+            uid = str(body.get("uid") or "").strip()
+            val = bool(body.get("value"))
+            acc = POOL.get(uid) if POOL else None
+            if not acc: return self._error(404, "account not found")
+            acc.checkin_when_disabled = val
+            if hasattr(acc, 'save'): acc.save(ACCOUNTS_DIR)
+            return self._json(200, {"ok": True, "uid": uid, "checkinWhenDisabled": val})
+        if path == "/credits/probe":
+            return self._json(200, {"ok": True, "results": []})
+        if path == "/settings/model-context":
+            return self._json(200, {"ok": True, "model_context": {}})
+        if path == "/settings/web-tools":
+            return self._json(200, {"ok": True, "web_tools": False})
+        if path == "/settings/tool-echo-mode":
+            return self._json(200, {"ok": True, "effective": "strict"})
+
         # #26：同 do_GET —— 每次请求入口清空，避免 keep-alive 复用实例时把上一次
         # chat 的出口/原因带到别的响应上。
         self.realm_used = ""
@@ -11391,6 +11706,7 @@ def main():
 
     POOL = trae_accounts.AccountPool(ACCOUNTS_DIR, log=log)
     POOL.load()
+    trae_stats.POOL = POOL
     load_persisted_realm()
     # task-61：把设置里的护栏阈值 + free 名单**同批**推给池（R3）；阈值全 0 时
     # 不产生任何副作用，任一 > 0 则惰性启动后台上新线程（G1 的恢复路径）。

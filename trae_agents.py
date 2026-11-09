@@ -966,3 +966,27 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
+def template(client_id, base_url, model=None):
+    """Pure placeholder template: build in an empty temp dir; no local config/key reads."""
+    client = _client(client_id)
+    base = str(base_url or "").strip().rstrip("/")
+    if not re.match(r"^https?://", base):
+        raise AgentConfigError("base_url must start with http:// or https://")
+    base_v1 = base if base.endswith("/v1") else base+"/v1"
+    model = str(model or "auto")
+    guide = client.get("guide", "在客户端选择 Trae Gateway provider / 模型；配置前保留原件。")
+    guide = guide.replace("{BASE_URL_V1}", base_v1).replace("{MODEL}", model)
+    if client.get("mode") == "manual":
+        return {"client": client_id, "mode": "manual", "guide": guide, "files": []}
+    with tempfile.TemporaryDirectory(prefix="trae-agent-template-") as home:
+        # Only role names come from the registry. Never read any resolved local client path.
+        roles = client["files"](home)
+        paths = {role: os.path.join(home, role + ".template") for role in roles}
+        ctx = {"base_url": base, "base_url_v1": base_v1, "api_key": "YOUR_API_KEY",
+               "model": model, "models": [{"id": model}]}
+        contents = client["apply"](paths, ctx)
+        return {"client": client_id, "mode": "automatic", "guide": guide,
+                "files": [{"role": role, "content": contents[p]} for role,p in paths.items() if p in contents]}
+
+
