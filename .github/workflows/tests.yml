@@ -29,8 +29,11 @@ jobs:
           python test_issue_http.py
           python test_issue_solo.py
           python test_issue_packaging.py
+          python -m unittest test_oauth_core test_oauth_http
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Dashboard regression
-        run: node test_issue_dashboard.js
+        run: |
+          node test_issue_dashboard.js
+          node test_oauth_dashboard.js

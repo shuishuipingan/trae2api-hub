@@ -571,6 +571,12 @@ def auth_headers(account, realm=None):
         "User-Agent": REALMS[realm]["ua"],
     }
     headers.update(trae_fingerprint.trae_device_headers(_uid(account)))
+    # Browser OAuth binds the token to this session device; do not replace it
+    # with the UID-derived legacy identity after account persistence/restart.
+    if account.get("device_id"):
+        headers["X-Device-Id"] = str(account["device_id"])
+    if account.get("machine_id"):
+        headers["X-Machine-Id"] = str(account["machine_id"])
     headers["X-Request-Id"] = trae_fingerprint.trae_request_id()
     return headers
 

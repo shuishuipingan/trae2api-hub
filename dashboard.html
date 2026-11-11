@@ -4355,8 +4355,8 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
     </div>
     <div class="modal-bd">
       <p class="hint" style="margin-top:0">
-        Trae 客户端没有可用的设备 OAuth 授权流程。请选择下面任意一种方式，导入本机已有登录凭证；
-        所有凭证只提交给本机网关，不会上传到第三方。
+        可让浏览器完成 OAuth 授权，也可导入本机已有登录凭证。
+        所有凭证与回调地址只提交给本机网关，不会上传到第三方。
       </p>
       <div style="display:grid;gap:10px;margin:14px 0">
         <button class="sec" style="text-align:left;padding:12px 14px" onclick="beginAddByScan(this)">
@@ -4372,15 +4372,40 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
           <span class="hint" style="margin:0">已有 refreshToken 时直接入池，网关会换取 access token</span>
         </button>
       </div>
-      <details style="border-top:1px solid var(--line);padding-top:12px">
-        <summary style="cursor:pointer;font-size:12px;color:var(--dim)">设备授权登录（当前构建不支持）</summary>
-        <p class="hint">面板不会轮询或伪造登录成功。可单次请求服务端，原样展示它返回的 JSON 错误。</p>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button class="sec mini" onclick="probeLoginUnsupported(this)">查看服务端响应</button>
-          <span id="loginProbeStatus" class="hint" style="margin:0"></span>
+
+      <div id="oauthBlock" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <b>浏览器 OAuth 登录</b>
+            <div class="hint" style="margin:4px 0 0">网关在本机回环地址等待回调；浏览器不在网关机器时，可粘贴回调地址完成。</div>
+          </div>
+          <div role="radiogroup" aria-label="OAuth 区域" style="display:flex;gap:14px;font-size:13px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="oauthRealm" value="cn" id="oauthRealmCn" checked> 国内版</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="oauthRealm" value="intl" id="oauthRealmIntl"> 国际版</label>
+          </div>
         </div>
-        <pre id="loginProbeResult" class="mono" style="display:none;max-height:220px;overflow:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11px;white-space:pre-wrap;word-break:break-word"></pre>
-      </details>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="primary" id="btnOauthStart" onclick="oauthStart(this)">开始浏览器授权</button>
+          <button class="sec" id="btnOauthCancel" onclick="oauthCancel(this)" hidden>取消登录</button>
+          <button class="sec" id="btnOauthRetry" onclick="oauthRetryPoll(this)" hidden>重试查询</button>
+          <a id="oauthLink" target="_blank" rel="noopener noreferrer" hidden style="font-size:12px">打开授权页</a>
+        </div>
+        <p id="oauthStatus" class="hint" role="status" aria-live="polite" style="margin:9px 0 0"></p>
+        <p id="oauthRemaining" class="hint" style="margin:4px 0 0;display:none"></p>
+        <p id="oauthVerification" class="hint mono" style="margin:4px 0 0;display:none;word-break:break-all"></p>
+        <details id="oauthCallbackDetails" style="margin-top:10px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--dim)">浏览器不在网关机器？粘贴回调地址</summary>
+          <p class="hint" style="margin:8px 0 6px">授权完成后浏览器会跳转到网关的本机回调地址；复制地址栏中的完整 URL 粘贴到这里，只提交给本机网关。</p>
+          <textarea id="oauthCallbackInput" rows="3" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:PORT/authorize?code=…&state=…" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--fg);font:12px/1.6 ui-monospace,monospace;resize:vertical"></textarea>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="sec" id="btnOauthCallback" onclick="oauthSubmitCallback(this)">提交回调地址</button>
+            <span id="oauthCallbackStatus" class="hint" style="margin:0"></span>
+          </div>
+        </details>
+      </div>
+
+
+
     </div>
     <div class="modal-ft">
       <button class="sec" onclick="closeLogin()">关闭</button>
@@ -4879,13 +4904,15 @@ document.addEventListener('DOMContentLoaded',function(){adminRenderApiExamples()
 
 
 function openAddAccount(){
+  oauthReset();
   const m = document.getElementById("loginModal");
   if(m) m.classList.add("show");
 }
-/* 兼容旧调用点：一律落到真实的「添加账号」面板。 */
-function openLoginModal(){ openAddAccount(); }
+/* 兼容旧调用点：落到「添加账号」面板，并把浏览器 OAuth 区块带到视口内。 */
+function openLoginModal(){ openAddAccount(); oauthFocus(); }
 
 function closeLogin(){
+  oauthLeave();
   const m = document.getElementById("loginModal");
   if(m) m.classList.remove("show");
 }
@@ -4895,37 +4922,676 @@ function beginAddByScan(btn){
   scanDesktop(btn || document.getElementById("btnScanDesktop"));
 }
 
-/* 单次探测服务端是否还提供设备授权；只展示可读 JSON 错误，绝不轮询。 */
-async function probeLoginUnsupported(btn){
-  const statusEl = document.getElementById("loginProbeStatus");
-  const pre = document.getElementById("loginProbeResult");
-  const realm = (window.VIEW_REALM === "cn") ? "cn" : "intl";
-  if(btn){ btn.disabled = true; btn.textContent = "请求中..."; }
-  if(statusEl) statusEl.textContent = "正在请求 /accounts/login/start ...";
-  if(pre){ pre.style.display = "none"; pre.textContent = ""; }
-  try{
-    const resp = await fetch("/accounts/login/start", {
-      method: "POST",
-      headers: authHeaders({"Content-Type": "application/json"}),
-      body: JSON.stringify({platform: "CLI", realm: realm})
-    });
-    const text = await resp.text();
-    let body = {};
-    try { body = text ? JSON.parse(text) : {}; }
-    catch(e) { body = {raw: text}; }
-    const pretty = JSON.stringify(body, null, 2);
-    if(resp.ok){
-      if(statusEl) statusEl.textContent = "服务端仍返回了设备授权响应；本面板不提供该流程，也不会轮询。请使用上方三种导入方式。";
-    }else{
-      if(statusEl) statusEl.textContent = formatApiError(Object.assign({status: resp.status}, body), "HTTP " + resp.status);
+/* BEGIN-OAUTH-CONTRACT — 浏览器 OAuth 纯函数；test_oauth_dashboard.js 按锚点回归 */
+var OAUTH_ENDPOINT = '/accounts/login/';
+/* 只信任官方授权页主机；不接受子域、裸域或其它 Trae 域名。 */
+var OAUTH_ALLOWED_HOSTS = ['www.trae.cn', 'www.trae.ai'];
+var OAUTH_TERMINAL_STATUSES = ['success', 'failed', 'expired', 'cancelled', 'not_found'];
+var OAUTH_MAX_POLL_FAILURES = 5;
+var OAUTH_DEFAULT_INTERVAL = 2;
+var OAUTH_SESSION_MAX_MS = 15 * 60 * 1000;
+
+function oauthHostMatches(host, domain) {
+  host = String(host || '').toLowerCase().replace(/\.$/, '');
+  domain = String(domain || '').toLowerCase();
+  return !!host && !!domain && host === domain;
+}
+
+/* 只允许 https + 官方域；拒绝 javascript:/data:、带凭据的 URL 与相似域。 */
+function oauthSafeAuthorizeUrl(raw, allowedHosts) {
+  var value = String(raw == null ? '' : raw).trim();
+  if (!value) return '';
+  var hosts = Array.isArray(allowedHosts) && allowedHosts.length ? allowedHosts : OAUTH_ALLOWED_HOSTS;
+  var parsed;
+  try { parsed = new URL(value); } catch (e) { return ''; }
+  if (parsed.protocol !== 'https:') return '';
+  if (parsed.username || parsed.password) return '';
+  var host = parsed.hostname || '';
+  var ok = hosts.some(function (domain) { return oauthHostMatches(host, domain); });
+  return ok ? parsed.href : '';
+}
+
+function oauthIsLoopbackHost(host) {
+  var h = String(host || '').toLowerCase().replace(/^\[/, '').replace(/\]$/, '').replace(/\.$/, '');
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0:0:0:0:0:0:0:1';
+}
+
+/* expires_at 允许 epoch 秒 / epoch 毫秒 / 相对秒数 / ISO 字符串，统一成毫秒。 */
+function oauthNormalizeExpiry(value, now) {
+  now = typeof now === 'number' ? now : Date.now();
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'string' && !/^\d+(\.\d+)?$/.test(value.trim())) {
+    var parsed = Date.parse(value);
+    return isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+  var n = Number(value);
+  if (!isFinite(n) || n <= 0) return 0;
+  if (n > 1e12) return Math.round(n);
+  if (n > 1e9) return Math.round(n * 1000);
+  return Math.round(now + n * 1000);
+}
+
+function oauthRemainingSeconds(expiresAt, now) {
+  now = typeof now === 'number' ? now : Date.now();
+  if (!expiresAt) return 0;
+  var seconds = Math.ceil((expiresAt - now) / 1000);
+  return seconds > 0 ? seconds : 0;
+}
+
+function oauthPollDelay(interval) {
+  var n = Number(interval);
+  if (!isFinite(n) || n < 1) return OAUTH_DEFAULT_INTERVAL;
+  return Math.min(60, Math.max(1, n));
+}
+
+function oauthBackoffMs(failures) {
+  var n = Math.max(1, Number(failures) || 1);
+  return Math.min(15000, 1000 * Math.pow(2, n - 1));
+}
+
+function oauthIsTerminal(status) {
+  return OAUTH_TERMINAL_STATUSES.indexOf(String(status || '')) >= 0;
+}
+
+function oauthParseStartResponse(data, now) {
+  data = data && typeof data === 'object' ? data : {};
+  var status = String(data.status || '');
+  if (status === 'unsupported') {
+    var unsupported = data.error && data.error.message ? data.error.message : data.message;
+    return { ok: false, terminal: true, status: 'unsupported',
+             message: String(unsupported || '服务端不支持浏览器 OAuth 登录。') };
+  }
+  if (status === 'failed' || status === 'expired'
+      || status === 'cancelled' || status === 'not_found') {
+    var terminalMessage = data.error && data.error.message ? data.error.message : data.message;
+    return { ok: false, terminal: true, status: status,
+             message: String(terminalMessage || oauthStatusText(status)) };
+  }
+  var state = String(data.state || '').trim();
+  var url = String(data.authorization_url || '').trim();
+  if (!state) return { ok: false, terminal: true, status: 'failed', message: '服务端没有返回 state，无法开始轮询。' };
+  if (!url) return { ok: false, terminal: true, status: 'failed', message: '服务端没有返回授权链接。' };
+  /* 后端字段为 interval2（部分版本会是 interval）；统一收敛到 1–60 秒。 */
+  var interval = Number(data.interval2 != null ? data.interval2 : data.interval);
+  return {
+    ok: true,
+    status: status || 'pending',
+    state: state,
+    authorization_url: url,
+    verification_uri: String(data.verification_uri || ''),
+    redirect_uri: String(data.redirect_uri || ''),
+    expires_at: oauthNormalizeExpiry(data.expires_at, now),
+    interval: isFinite(interval) && interval >= 1 ? Math.min(60, Math.max(1, interval)) : OAUTH_DEFAULT_INTERVAL,
+    realm: data.realm === 'cn' ? 'cn' : (data.realm === 'intl' ? 'intl' : '')
+  };
+}
+
+/* 回调地址只接受 http(s)；非 https 仅限回环，且必须匹配网关给的 redirect_uri。 */
+function oauthValidateCallbackUrl(raw, redirectUri, expectedState) {
+  var value = String(raw == null ? '' : raw).trim();
+  if (!value) return { ok: false, reason: '请先粘贴完整的回调 URL。' };
+  var parsed;
+  try { parsed = new URL(value); } catch (e) { return { ok: false, reason: '回调地址不是合法 URL。' }; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, reason: '回调地址必须是 http(s) URL。' };
+  }
+  if (parsed.protocol === 'http:' && !oauthIsLoopbackHost(parsed.hostname)) {
+    return { ok: false, reason: '非 https 的回调地址只允许网关本机回环地址。' };
+  }
+  if (parsed.username || parsed.password) {
+    return { ok: false, reason: '回调地址不能包含用户名或密码。' };
+  }
+  if (redirectUri) {
+    var expected = null;
+    try { expected = new URL(String(redirectUri)); } catch (e) { expected = null; }
+    if (expected) {
+      var portOf = function (u) { return u.port || (u.protocol === 'https:' ? '443' : '80'); };
+      if (parsed.hostname !== expected.hostname || portOf(parsed) !== portOf(expected)) {
+        return { ok: false, reason: '回调地址必须指向网关返回的回调主机与端口。' };
+      }
+      if (expected.pathname && parsed.pathname !== expected.pathname) {
+        return { ok: false, reason: '回调地址路径与网关返回的 redirect_uri 不一致。' };
+      }
     }
-    if(pre){ pre.textContent = pretty || ("HTTP " + resp.status); pre.style.display = "block"; }
-  }catch(e){
-    if(statusEl) statusEl.textContent = formatApiError(e, "请求失败");
-  }finally{
-    if(btn){ btn.disabled = false; btn.textContent = "查看服务端响应"; }
+  }
+  var callbackState = parsed.searchParams ? parsed.searchParams.get('state') : null;
+  if (expectedState && callbackState && callbackState !== String(expectedState)) {
+    return { ok: false, reason: '回调地址中的 state 与当前登录会话不一致。' };
+  }
+  return { ok: true, url: parsed.href };
+}
+
+function oauthStatusText(status, message) {
+  var extra = String(message || '');
+  var map = {
+    pending: '等待浏览器完成授权…',
+    exchanging: '已收到回调，正在换取账号…',
+    success: '登录成功，账号已加入网关。',
+    failed: extra || '授权失败，请重试或改用其他导入方式。',
+    expired: '授权已过期，请重新开始。',
+    cancelled: '登录已取消。',
+    not_found: '登录会话不存在或已结束，请重新开始。',
+    unsupported: extra || '服务端不支持浏览器 OAuth 登录。'
+  };
+  return map[status] || (extra || ('未知状态：' + (status || '—')));
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.__oauthContract = {
+    OAUTH_ENDPOINT: OAUTH_ENDPOINT,
+    OAUTH_ALLOWED_HOSTS: OAUTH_ALLOWED_HOSTS,
+    OAUTH_TERMINAL_STATUSES: OAUTH_TERMINAL_STATUSES,
+    OAUTH_MAX_POLL_FAILURES: OAUTH_MAX_POLL_FAILURES,
+    oauthHostMatches: oauthHostMatches,
+    oauthSafeAuthorizeUrl: oauthSafeAuthorizeUrl,
+    oauthIsLoopbackHost: oauthIsLoopbackHost,
+    oauthNormalizeExpiry: oauthNormalizeExpiry,
+    oauthRemainingSeconds: oauthRemainingSeconds,
+    oauthPollDelay: oauthPollDelay,
+    oauthBackoffMs: oauthBackoffMs,
+    oauthIsTerminal: oauthIsTerminal,
+    oauthParseStartResponse: oauthParseStartResponse,
+    oauthValidateCallbackUrl: oauthValidateCallbackUrl,
+    oauthStatusText: oauthStatusText
+  };
+}
+/* END-OAUTH-CONTRACT */
+
+/* BEGIN-OAUTH-RUNTIME — 浏览器 OAuth 面板交互；test_oauth_dashboard.js 用 vm + 假 DOM 回归 */
+var OAUTH = {
+  state: '', realm: '', interval: OAUTH_DEFAULT_INTERVAL, deadline: 0,
+  nextPollAt: 0, failures: 0, polling: false, active: false, starting: false,
+  timer: null, pollAbort: null, popup: null, redirectUri: '', lastReason: '',
+  runId: 0
+};
+
+function oauthEl(id) {
+  return document.getElementById(id);
+}
+
+function oauthShow(id, show) {
+  var el = oauthEl(id);
+  if (!el) return;
+  el.hidden = !show;
+  if (el.style) el.style.display = show ? '' : 'none';
+}
+
+function oauthSetText(id, text) {
+  var el = oauthEl(id);
+  if (el) el.textContent = text == null ? '' : String(text);
+}
+
+function oauthSetStatus(text, tone) {
+  var el = oauthEl('oauthStatus');
+  if (!el) return;
+  el.textContent = text == null ? '' : String(text);
+  if (el.dataset) el.dataset.tone = tone || '';
+}
+
+function oauthErrorMessage(error) {
+  if (!error) return '请求失败，请稍后重试。';
+  if (error.name === 'AbortError') return '请求已取消。';
+  return error.message ? String(error.message) : '请求失败，请稍后重试。';
+}
+
+function oauthSelectedRealm() {
+  var cn = oauthEl('oauthRealmCn');
+  if (cn && cn.checked) return 'cn';
+  var intl = oauthEl('oauthRealmIntl');
+  if (intl && intl.checked) return 'intl';
+  return window.VIEW_REALM === 'cn' ? 'cn' : 'intl';
+}
+
+function oauthSetBusy(busy) {
+  var btn = oauthEl('btnOauthStart');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? '正在申请…' : '开始浏览器授权';
+}
+
+function oauthNewController() {
+  return typeof AbortController === 'function' ? new AbortController() : null;
+}
+
+async function oauthRequest(action, options) {
+  options = options || {};
+  var init = {
+    method: options.method || 'GET',
+    headers: authHeaders(options.body ? { 'Content-Type': 'application/json' } : {}),
+    cache: 'no-store',
+    credentials: 'same-origin'
+  };
+  if (options.body) init.body = JSON.stringify(options.body);
+  if (options.controller) init.signal = options.controller.signal;
+  var resp = await fetch(OAUTH_ENDPOINT + action, init);
+  var text = await resp.text();
+  var data = {};
+  if (text) {
+    try { data = JSON.parse(text); }
+    catch (e) { data = { message: '服务端返回了非 JSON 响应' }; }
+  }
+  if (resp.status === 401) {
+    if (typeof panelNeedsLogin === 'function') panelNeedsLogin();
+    var unauthorized = new Error('unauthorized');
+    unauthorized.status = 401;
+    unauthorized.terminal = true;
+    throw unauthorized;
+  }
+  if (!resp.ok) {
+    var failure = new Error(formatApiError(Object.assign({ status: resp.status }, data), 'HTTP ' + resp.status));
+    failure.status = resp.status;
+    failure.terminal = resp.status === 400 || resp.status === 403 || resp.status === 501;
+    throw failure;
+  }
+  return data;
+}
+
+function oauthOpenPopup() {
+  var popup = null;
+  var name = 'trae-oauth-' + Date.now().toString(36);
+  try { popup = window.open('about:blank', name, 'width=560,height=760'); }
+  catch (e) { popup = null; }
+  if (popup) {
+    /* 保留句柄是为了拿到校验后的链接再导航；先清 opener，外部页面拿不到本窗口引用。 */
+    try { popup.opener = null; } catch (e) { /* 跨源后不可写，忽略 */ }
+  }
+  return popup;
+}
+
+function oauthClosePopup() {
+  var popup = OAUTH.popup;
+  OAUTH.popup = null;
+  if (popup) {
+    try { popup.close(); } catch (e) { /* 已被用户关闭 */ }
   }
 }
+
+function oauthSchedule(delay) {
+  if (OAUTH.timer !== null) {
+    try { clearTimeout(OAUTH.timer); } catch (e) { /* 已触发 */ }
+  }
+  OAUTH.timer = setTimeout(oauthTick, delay == null ? 1000 : delay);
+}
+
+function oauthRenderRemaining() {
+  var el = oauthEl('oauthRemaining');
+  if (!el) return;
+  if (!OAUTH.active || !OAUTH.deadline) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  var seconds = oauthRemainingSeconds(OAUTH.deadline, Date.now());
+  el.style.display = '';
+  el.textContent = seconds > 0 ? ('授权窗口剩余 ' + seconds + ' 秒') : '授权窗口已到期';
+}
+
+function oauthStopSession(reason, keepState) {
+  OAUTH.active = false;
+  OAUTH.polling = false;
+  if (OAUTH.pollAbort) {
+    try { OAUTH.pollAbort.abort(); } catch (e) { /* 已结束 */ }
+    OAUTH.pollAbort = null;
+  }
+  if (OAUTH.timer !== null) {
+    try { clearTimeout(OAUTH.timer); } catch (e) { /* 已触发 */ }
+    OAUTH.timer = null;
+  }
+  OAUTH.nextPollAt = 0;
+  OAUTH.lastReason = reason || '';
+  if (!keepState) {
+    OAUTH.state = '';
+    OAUTH.failures = 0;
+  }
+}
+
+function oauthOpenCallbackIfRemote(redirectUri) {
+  var details = oauthEl('oauthCallbackDetails');
+  if (!details) return false;
+  var expected = null;
+  try { expected = new URL(String(redirectUri || '')); } catch (e) { expected = null; }
+  var remote = !!(expected && oauthIsLoopbackHost(expected.hostname)
+    && !oauthIsLoopbackHost(location.hostname));
+  if (remote) details.open = true;
+  return remote;
+}
+
+function oauthClearCallbackInput() {
+  var input = oauthEl('oauthCallbackInput');
+  if (input) input.value = '';
+  oauthSetText('oauthCallbackStatus', '');
+}
+
+function oauthFinish(status, data) {
+  OAUTH.runId += 1;
+  oauthStopSession(status);
+  oauthClearCallbackInput();
+  oauthClosePopup();
+  oauthShow('btnOauthCancel', false);
+  oauthShow('btnOauthRetry', false);
+  oauthShow('oauthRemaining', false);
+  if (status === 'success') {
+    var account = data && data.account;
+    var label = account && (account.nickname || account.display_name || account.uid);
+    oauthSetStatus(oauthStatusText('success', data && data.message) + (label ? '（' + String(label) + '）' : ''), 'ok');
+    try {
+      var refreshed = loadAccounts();
+      if (refreshed && typeof refreshed.catch === 'function') refreshed.catch(function () {});
+    } catch (e) { /* 登录已成功；列表刷新失败不改变结果 */ }
+    return;
+  }
+  oauthSetStatus(oauthStatusText(status, data && data.message), status === 'failed' ? 'bad' : 'warn');
+}
+
+async function oauthPollOnce() {
+  if (!OAUTH.active || !OAUTH.state) return;
+  var runId = OAUTH.runId;
+  OAUTH.polling = true;
+  var controller = oauthNewController();
+  OAUTH.pollAbort = controller;
+  try {
+    var data = await oauthRequest('poll?state=' + encodeURIComponent(OAUTH.state), { method: 'GET', controller: controller });
+    if (runId !== OAUTH.runId || !OAUTH.active) return;
+    OAUTH.failures = 0;
+    var status = String((data && data.status) || '');
+    if (status === 'success' || oauthIsTerminal(status)) {
+      oauthFinish(status, data || {});
+      return;
+    }
+    if (status === 'pending' || status === 'exchanging') {
+      oauthSetStatus(oauthStatusText(status), 'pending');
+      OAUTH.nextPollAt = Date.now() + oauthPollDelay(OAUTH.interval) * 1000;
+      return;
+    }
+    oauthSetStatus('网关返回了未知状态：' + (status || '空') + '，继续等待…', 'warn');
+    OAUTH.nextPollAt = Date.now() + oauthPollDelay(OAUTH.interval) * 1000;
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;
+    if (!OAUTH.active) return;
+    if (error && (error.status === 401 || error.terminal)) {
+      oauthStopSession('failed');
+      oauthClosePopup();
+      oauthShow('btnOauthCancel', false);
+      oauthSetStatus(oauthErrorMessage(error), 'bad');
+      return;
+    }
+    OAUTH.failures += 1;
+    if (OAUTH.failures >= OAUTH_MAX_POLL_FAILURES) {
+      oauthStopSession('retry', true);
+      oauthShow('btnOauthCancel', false);
+      oauthShow('btnOauthRetry', true);
+      oauthSetStatus('连续 ' + OAUTH.failures + ' 次查询授权状态失败：' + oauthErrorMessage(error) + '。可点击「重试查询」继续。', 'bad');
+      return;
+    }
+    OAUTH.nextPollAt = Date.now() + oauthBackoffMs(OAUTH.failures);
+    oauthSetStatus('查询授权状态失败（第 ' + OAUTH.failures + ' 次）：' + oauthErrorMessage(error) + '，将自动重试…', 'warn');
+  } finally {
+    OAUTH.polling = false;
+    if (OAUTH.pollAbort === controller) OAUTH.pollAbort = null;
+  }
+}
+
+async function oauthTick() {
+  OAUTH.timer = null;
+  if (!OAUTH.active) return;
+  oauthRenderRemaining();
+  var now = Date.now();
+  if (OAUTH.deadline && now >= OAUTH.deadline) {
+    oauthStopSession('expired');
+    oauthClosePopup();
+    oauthShow('btnOauthCancel', false);
+    oauthSetStatus(oauthStatusText('expired'), 'warn');
+    return;
+  }
+  if (!OAUTH.polling && now >= OAUTH.nextPollAt) {
+    await oauthPollOnce();
+  }
+  if (OAUTH.active) oauthSchedule(1000);
+}
+
+async function oauthStart(btn) {
+  if (OAUTH.starting) return;
+  var runId = ++OAUTH.runId;
+  var previousState = OAUTH.state;
+  var wasActive = OAUTH.active || OAUTH.starting;
+  if (wasActive) {
+    oauthStopSession('restart');
+    if (previousState) {
+      /* 重新开始时尽力结束旧监听，避免网关侧留下无人认领的回调端口。 */
+      try {
+        var cancelled = oauthRequest('cancel', { method: 'POST', body: { state: previousState }, controller: null });
+        if (cancelled && typeof cancelled.catch === 'function') cancelled.catch(function () {});
+      } catch (e) { /* 旧会话清理失败不阻塞新会话 */ }
+    }
+  }
+  oauthClosePopup();
+  OAUTH.starting = true;
+  oauthSetBusy(true);
+  oauthShow('btnOauthCancel', false);
+  oauthShow('btnOauthRetry', false);
+  oauthShow('oauthLink', false);
+  var previousLink = oauthEl('oauthLink');
+  if (previousLink) previousLink.removeAttribute('href');
+  oauthShow('oauthRemaining', false);
+  oauthShow('oauthVerification', false);
+  oauthSetText('oauthVerification', '');
+  oauthSetText('oauthCallbackStatus', '');
+  oauthSetStatus('正在向本机网关申请授权…', 'pending');
+  var popup = oauthOpenPopup();
+  OAUTH.popup = popup;
+  try {
+    var realm = oauthSelectedRealm();
+    var data = await oauthRequest('start', { method: 'POST', body: { realm: realm }, controller: oauthNewController() });
+    if (runId !== OAUTH.runId) return;
+    var parsed = oauthParseStartResponse(data, Date.now());
+    if (!parsed.ok) {
+      oauthClosePopup();
+      oauthSetStatus(parsed.message, parsed.status === 'unsupported' ? 'warn' : 'bad');
+      return;
+    }
+    if (parsed.status === 'success') {
+      oauthFinish('success', data || {});
+      return;
+    }
+    if (parsed.status === 'failed' || parsed.status === 'expired'
+        || parsed.status === 'cancelled' || parsed.status === 'not_found') {
+      oauthClosePopup();
+      oauthSetStatus(oauthStatusText(parsed.status), parsed.status === 'failed' ? 'bad' : 'warn');
+      return;
+    }
+    var safeUrl = oauthSafeAuthorizeUrl(parsed.authorization_url);
+    OAUTH.state = parsed.state;
+    OAUTH.realm = parsed.realm || realm;
+    OAUTH.interval = parsed.interval;
+    OAUTH.deadline = parsed.expires_at || (Date.now() + OAUTH_SESSION_MAX_MS);
+    OAUTH.redirectUri = parsed.redirect_uri;
+    OAUTH.failures = 0;
+    OAUTH.nextPollAt = Date.now() + OAUTH.interval * 1000;
+    OAUTH.active = true;
+    oauthShow('btnOauthCancel', true);
+    oauthRenderRemaining();
+    if (parsed.verification_uri) {
+      oauthSetText('oauthVerification', '确认码 / 验证地址：' + parsed.verification_uri);
+      oauthShow('oauthVerification', true);
+    }
+    if (!safeUrl) {
+      oauthClosePopup();
+      oauthStopSession('failed');
+      oauthShow('btnOauthCancel', false);
+      oauthSetStatus('服务端返回的授权链接不是受信任的官方 https 地址，已拒绝打开。', 'bad');
+      return;
+    }
+    var link = oauthEl('oauthLink');
+    if (link) {
+      link.href = safeUrl;
+      oauthShow('oauthLink', true);
+    }
+    var remotePaste = oauthOpenCallbackIfRemote(parsed.redirect_uri);
+    var navigated = false;
+    if (popup && !popup.closed) {
+      try { popup.location.replace(safeUrl); navigated = true; }
+      catch (e) { /* 导航被拦截时保留显式链接 */ }
+    }
+    if (navigated) {
+      oauthSetStatus(remotePaste
+        ? '已打开授权页。浏览器不在网关机器：完成授权后复制地址栏的完整回调 URL，粘贴到下方提交。'
+        : '已打开授权页，等待浏览器完成授权…', remotePaste ? 'warn' : 'pending');
+    } else {
+      oauthClosePopup();
+      oauthSetStatus('浏览器拦截了授权窗口，请点击「打开授权页」继续。'
+        + (remotePaste ? ' 完成后把回调地址粘贴到下方。' : ''), 'warn');
+    }
+    oauthSchedule(1000);
+  } catch (error) {
+    if (runId !== OAUTH.runId) return;
+    oauthClosePopup();
+    oauthStopSession('failed');
+    oauthSetStatus('无法开始浏览器授权：' + oauthErrorMessage(error), error && error.terminal ? 'warn' : 'bad');
+  } finally {
+    OAUTH.starting = false;
+    oauthSetBusy(false);
+  }
+}
+
+function oauthRetryPoll() {
+  if (!OAUTH.state) {
+    oauthSetStatus('没有可继续的登录会话，请重新开始。', 'warn');
+    return;
+  }
+  oauthShow('btnOauthRetry', false);
+  OAUTH.failures = 0;
+  OAUTH.active = true;
+  OAUTH.nextPollAt = Date.now();
+  oauthShow('btnOauthCancel', true);
+  oauthSetStatus('正在重新查询授权状态…', 'pending');
+  oauthSchedule(1000);
+}
+
+async function oauthCancel(btn) {
+  OAUTH.runId += 1;
+  var state = OAUTH.state;
+  oauthStopSession('cancelled');
+  oauthClearCallbackInput();
+  oauthClosePopup();
+  oauthShow('btnOauthCancel', false);
+  oauthShow('btnOauthRetry', false);
+  oauthShow('oauthRemaining', false);
+  oauthSetStatus(oauthStatusText('cancelled'), 'warn');
+  if (!state) return;
+  if (btn) btn.disabled = true;
+  try {
+    await oauthRequest('cancel', { method: 'POST', body: { state: state }, controller: oauthNewController() });
+  } catch (error) {
+    oauthSetStatus(oauthStatusText('cancelled') + '（网关未确认：' + oauthErrorMessage(error) + '）', 'warn');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function oauthSubmitCallback(btn) {
+  var runId = OAUTH.runId;
+  var input = oauthEl('oauthCallbackInput');
+  var verdict = oauthValidateCallbackUrl(input ? input.value : '', OAUTH.redirectUri, OAUTH.state);
+  if (!verdict.ok) {
+    oauthSetText('oauthCallbackStatus', verdict.reason);
+    return;
+  }
+  if (!OAUTH.state) {
+    oauthSetText('oauthCallbackStatus', '请先点击「开始浏览器授权」，再提交回调地址。');
+    return;
+  }
+  if (btn) btn.disabled = true;
+  oauthSetText('oauthCallbackStatus', '正在提交回调地址…');
+  try {
+    var data = await oauthRequest('callback', {
+      method: 'POST',
+      body: { callback_url: verdict.url, state: OAUTH.state },
+      controller: oauthNewController()
+    });
+    if (runId !== OAUTH.runId) return;
+    if (input) input.value = '';
+    var status = String((data && data.status) || '');
+    if (status === 'success') {
+      oauthFinish('success', data || {});
+      return;
+    }
+    oauthSetText('oauthCallbackStatus', '已提交，等待授权结果。');
+    oauthSetStatus('回调地址已提交，等待网关换取账号…', 'pending');
+    OAUTH.nextPollAt = Date.now();
+    if (!OAUTH.active) {
+      OAUTH.active = true;
+      oauthShow('btnOauthCancel', true);
+      oauthSchedule(1000);
+    }
+  } catch (error) {
+    if (input) input.value = '';
+    if (error && (error.status === 401 || error.terminal)) {
+      oauthStopSession('failed');
+      oauthClosePopup();
+      oauthShow('btnOauthCancel', false);
+    }
+    oauthSetText('oauthCallbackStatus', '提交回调地址失败：' + oauthErrorMessage(error));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function oauthReset() {
+  OAUTH.runId += 1;
+  oauthStopSession('reset');
+  oauthClosePopup();
+  OAUTH.starting = false;
+  OAUTH.failures = 0;
+  OAUTH.deadline = 0;
+  oauthSetBusy(false);
+  oauthShow('btnOauthCancel', false);
+  oauthShow('btnOauthRetry', false);
+  oauthShow('oauthLink', false);
+  oauthShow('oauthRemaining', false);
+  oauthShow('oauthVerification', false);
+  oauthSetText('oauthStatus', '');
+  oauthSetText('oauthVerification', '');
+  oauthSetText('oauthCallbackStatus', '');
+  var input = oauthEl('oauthCallbackInput');
+  if (input) input.value = '';
+  var link = oauthEl('oauthLink');
+  if (link) link.removeAttribute('href');
+  var details = oauthEl('oauthCallbackDetails');
+  if (details) details.open = false;
+  var cn = oauthEl('oauthRealmCn');
+  var intl = oauthEl('oauthRealmIntl');
+  var preferred = window.VIEW_REALM === 'cn' ? 'cn' : 'intl';
+  if (cn) cn.checked = preferred === 'cn';
+  if (intl) intl.checked = preferred === 'intl';
+}
+
+function oauthFocus() {
+  var block = oauthEl('oauthBlock');
+  if (block && typeof block.scrollIntoView === 'function') {
+    try { block.scrollIntoView({ block: 'nearest' }); }
+    catch (e) { block.scrollIntoView(); }
+  }
+  var btn = oauthEl('btnOauthStart');
+  if (btn && typeof btn.focus === 'function') btn.focus();
+}
+
+function oauthLeave() {
+  OAUTH.runId += 1;
+  var state = OAUTH.state;
+  var wasActive = OAUTH.active;
+  oauthStopSession('closed');
+  oauthClearCallbackInput();
+  oauthClosePopup();
+  oauthShow('btnOauthCancel', false);
+  oauthShow('btnOauthRetry', false);
+  if (wasActive && state) {
+    try {
+      var pending = oauthRequest('cancel', { method: 'POST', body: { state: state }, controller: null });
+      if (pending && typeof pending.catch === 'function') pending.catch(function () {});
+    } catch (e) { /* 关闭面板不阻塞 */ }
+  }
+}
+/* END-OAUTH-RUNTIME */
 
 
 window.ACTIVE_GATEWAY_REALM = "intl";

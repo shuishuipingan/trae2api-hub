@@ -196,8 +196,8 @@ const mustContain = [
   "d.valid",
   "data-path",
   "data-realm",
-  '设备授权登录（当前构建不支持）',
-  '不会轮询'
+  '浏览器 OAuth 登录',
+  'async function oauthStart('
 ];
 mustContain.forEach(token => {
   check('dashboard 必须包含: ' + token, () => {
@@ -213,10 +213,8 @@ const mustNotContain = [
   'id="patModal"',
   'openPatImport',
   'doImportPat',
-  'pollLogin',
-  '/accounts/login/poll',
-  'loginState',
-  'loginTimer',
+  'probeLoginUnsupported(this)',
+  '设备授权登录（当前构建不支持）',
 
 ];
 mustNotContain.forEach(token => {
@@ -225,11 +223,12 @@ mustNotContain.forEach(token => {
   });
 });
 
-check('登录入口只做单次探测，不再有轮询', () => {
-  const starts = (html.match(/fetch\(\s*["']\/accounts\/login\/start["']/g) || []).length;
-  assert.strictEqual(starts, 1, 'expected exactly one login/start fetch, got ' + starts);
-  assert.ok(!html.includes('/accounts/login/cancel'), 'cancel endpoint should be gone');
-  assert.ok(!/setInterval\s*\(\s*poll/i.test(html), 'login polling interval must be gone');
+check('浏览器 OAuth 提供开始、轮询、取消与回调并避免 setInterval 重叠', () => {
+  ["oauthRequest('start'", "oauthRequest('poll?state='", "oauthRequest('cancel'", "oauthRequest('callback'"].forEach(token => {
+    assert.ok(html.includes(token), 'missing OAuth endpoint: ' + token);
+  });
+  assert.ok(html.includes('AbortController'), 'polling must be abortable');
+  assert.ok(!/setInterval\s*\(\s*poll/i.test(html), 'login polling must not overlap');
 });
 
 check('模型上下文保存请求携带目录区域', () => {

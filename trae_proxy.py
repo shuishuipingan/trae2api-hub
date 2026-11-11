@@ -84,7 +84,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.5.1"
+VERSION = "1.6.0"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -9157,6 +9157,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             req_path = (getattr(self, "path", None)
                         or (args[0] if args else "")).split("?")[0]
+            if req_path.startswith("/accounts/login/"):
+                log("OAuth management %s %s" % (getattr(self, "command", "GET"), req_path))
+                return  # Never log a callback URL, code, state or credential query.
             if req_path == "/favicon.ico":
                 return           # 浏览器自动请求的 404 不刷屏
             status_code = int(args[1]) if len(args) > 1 \
@@ -9230,6 +9233,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if urlparse(self.path).path.startswith("/accounts/login/"):
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
         if code == 429:
             self.send_header("Retry-After", "60")
         realm_used = getattr(self, "realm_used", "") or ""
@@ -10136,7 +10142,11 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorized():
                 return
             state = (query.get("state") or [""])[0]
-            return self._json(200, POOL.poll_login(state))
+            if not POOL:
+                return self._error(503, "account pool is unavailable")
+            if len(query.get("state") or []) != 1:
+                return self._error(400, "exactly one login state is required", "invalid_request_error")
+            return self._json(200, POOL.poll_login(state, owner=self._panel_token()))
         if path == "/usage/analytics":
             if not self._authorized():
                 return
@@ -10823,30 +10833,52 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"results": results,
                                     "accounts": account_views()})
         if path == "/accounts/login/start":
-            platform = payload.get("platform") or "CLI"
             target_realm = payload.get("realm") or CURRENT_REALM
             if target_realm not in ("intl", "cn"):
-                target_realm = "cn"
+                return self._error(400, "realm must be cn or intl", "invalid_request_error")
             try:
                 started = POOL.start_login(realm=target_realm,
-                                           platform=platform)
-            except Exception as exc:
-                return self._error(502, "could not start login: %s" % exc)
-            if not isinstance(started, dict):
-                return self._error(502, "invalid login response")
-            if started.get("status") == "unsupported":
-                message = started.get("message") or "Device authorization is unsupported; import desktop credentials or refreshToken."
-                return self._json(501, dict(started, ok=False, error={
-                    "message": message, "type": "unsupported_operation"}))
-            state = str(started.get("state") or "")
-            if not state:
-                return self._error(502, "login response missing state")
-            log("device login started (realm=%s, state=%s)"
-                % (target_realm, state[:8]))
+                                           platform=payload.get("platform"),
+                                           owner=self._panel_token())
+            except Exception:
+                return self._error(502, "could not start browser OAuth login", "oauth_start_failed")
+            if isinstance(started, dict) and started.get("status") == "failed":
+                error_code = (started.get("error") or {}).get("code")
+                http_status = 429 if error_code == "too_many_sessions" else 400 if error_code == "invalid_platform" else 503
+                return self._json(http_status, started)
+            if not isinstance(started, dict) or not started.get("state"):
+                return self._error(502, "invalid OAuth login response", "oauth_start_failed")
             return self._json(200, started)
         if path == "/accounts/login/cancel":
             state = payload.get("state") or ""
-            return self._json(200, {"cancelled": POOL.cancel_login(state)})
+            return self._json(200, {"cancelled": POOL.cancel_login(state, owner=self._panel_token())})
+        if path == "/accounts/login/callback":
+            # Manual completion is for browser-on-another-machine / container use.
+            # It remains panel-authenticated; native browser callbacks terminate
+            # on the manager's separate loopback listener, never on this route.
+            callback_url = payload.get("callback_url")
+            state = payload.get("state")
+            if not isinstance(callback_url, str) or len(callback_url) > 65536 or not isinstance(state, str):
+                return self._error(400, "callback_url and state are required", "invalid_request_error")
+            try:
+                callback = urlparse(callback_url)
+                if (callback.scheme != "http" or callback.hostname != "127.0.0.1"
+                        or callback.path != "/authorize" or callback.username or callback.password
+                        or callback.fragment or not callback.port):
+                    return self._error(400, "invalid OAuth callback URL", "invalid_request_error")
+                params = parse_qs(callback.query, keep_blank_values=True, max_num_fields=64)
+                traces = [values[0] for name, values in params.items()
+                          if name in ("state", "loginTraceID", "login_trace_id") and len(values) == 1]
+                if not traces or any(not isinstance(v, str) or v != state for v in traces):
+                    return self._error(400, "OAuth callback state mismatch", "invalid_request_error")
+                expected = POOL.poll_login(state, owner=self._panel_token())
+                redirect = urlparse(expected.get("redirect_uri") or "")
+                if expected.get("status") not in ("pending", "exchanging") or callback.netloc != redirect.netloc:
+                    return self._error(400, "OAuth callback does not match a pending login", "invalid_request_error")
+                result = POOL.complete_login(params, owner=self._panel_token())
+            except Exception:
+                return self._error(400, "OAuth callback was rejected", "oauth_callback_failed")
+            return self._json(200 if result.get("status") == "success" else 400, result)
         if path == "/accounts/import/pat":
             pat = payload.get("refresh_token") or payload.get("refreshToken") or payload.get("pat") or ""
             realm = payload.get("realm") or CURRENT_REALM
@@ -12084,7 +12116,7 @@ def main():
         print("  " + "=" * 62)
         print("  NO ACCOUNTS YET")
         print()
-        print("  Open the dashboard and click [+ 添加账号 (OAuth)]:")
+        print("  Open the dashboard and choose 添加账号 → 浏览器 OAuth 登录:")
         print("      http://127.0.0.1:%d/" % args.port)
         print()
         print("  The browser flow adds the account automatically.")

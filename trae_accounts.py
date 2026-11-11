@@ -1048,6 +1048,11 @@ class Account(object):
             "userRegion": dict(self.user_region),
             "account": dict(self.account),
             "realm": self.realm,
+            # OAuth signs the same device during authorization and later refresh.
+            "privateKeyPEM": self.extra.get("privateKeyPEM"),
+            "deviceInfo": self.extra.get("deviceInfo"),
+            "device_id": self.extra.get("device_id"),
+            "machine_id": self.extra.get("machine_id"),
             "proxy": self.proxy,
             "egress": self.proxy,
         }
@@ -1821,6 +1826,7 @@ class AccountPool(object):
         self.log = log or _default_log
         self.accounts = []
         self._lock = threading.RLock()
+        self._oauth_manager = None
         self.affinity = SessionAffinity()
         self._weights = {}
         # 区域出口覆盖（运行期）：{"cn": "...", "intl": "...", "global": "..."}
@@ -2375,17 +2381,69 @@ class AccountPool(object):
                  % (mask_uid(account.uid), account.realm))
         return dict(account.public(), uidSynthetic=bool(derived_uid), created=True)
 
-    # -- 旧登录路由的明确回答（Trae 没有设备授权流程）--------------------
-    def start_login(self, realm=None, platform=None):
-        return {"status": "unsupported", "realm": realm_key(realm) or "",
-                "message": "Trae 没有设备授权流程：请用 Desktop 导入，或粘贴 refreshToken"}
+    # -- Browser OAuth（native_ide + PKCE，不是设备授权轮询）--------------
+    def _oauth(self):
+        with self._lock:
+            if self._oauth_manager is None:
+                import trae_oauth
+                self._oauth_manager = trae_oauth.OAuthManager(self._complete_oauth_account)
+            return self._oauth_manager
 
-    def poll_login(self, state=None):
-        return {"status": "unsupported",
-                "message": "Trae 没有设备授权流程：请用 Desktop 导入，或粘贴 refreshToken"}
+    def _complete_oauth_account(self, row):
+        """Persist verified credentials before publishing a successful login.
 
-    def cancel_login(self, state=None):
-        return False
+        Keep existing enable/routing/quota settings. A failed save must not mutate
+        the in-memory pool, unlike generic add()'s append-before-save behavior.
+        """
+        data = normalise_import_row(row, realm=row.get("realm"))
+        uid = _safe_uid(data["uid"])
+        if uid != data["uid"]:
+            raise AccountError("OAuth account identity is invalid")
+        with self._lock:
+            existing = next((a for a in self.accounts if a.uid == uid), None)
+            if existing is not None and existing.realm != data["realm"]:
+                raise AccountError("OAuth account identity conflicts with another realm")
+            if existing is not None:
+                with existing._lock:
+                    merged = existing.to_dict()
+                    for key in ("token", "refresh_token", "expired_at", "refresh_expired_at",
+                                "host", "user_region", "account", "source"):
+                        merged[key] = data[key]
+                    merged["account"] = dict(existing.account or {}, **{
+                        key: value for key, value in (data.get("account") or {}).items() if value})
+                    merged["extra"] = dict(existing.extra or {}, **(data.get("extra") or {}))
+                    candidate = Account(merged, directory=self.dir)
+                    candidate.save(self.dir)
+                    # Preserve object identity for in-flight requests and slot counters.
+                    for key in ("token", "refresh_token", "expired_at", "refresh_expired_at",
+                                "host", "user_region", "account", "source", "extra", "updated_at"):
+                        setattr(existing, key, getattr(candidate, key))
+                    account = existing
+            else:
+                account = Account(data, directory=self.dir)
+                account.save(self.dir)
+                self.accounts.append(account)
+            self._apply_egress(account)
+            view = account.public()
+        self.log("OAuth 登录完成（%s）" % account.realm)
+        return dict(view, created=existing is None, updated=existing is not None)
+
+    def start_login(self, realm=None, platform=None, owner="", redirect_uri=None):
+        return self._oauth().start(realm=realm or DEFAULT_REALM, platform=platform,
+                                  owner=owner, redirect_uri=redirect_uri)
+
+    def poll_login(self, state=None, owner=""):
+        return self._oauth().poll(state, owner=owner)
+
+    def cancel_login(self, state=None, owner=""):
+        return self._oauth().cancel(state, owner=owner)
+
+    def complete_login(self, params, owner=""):
+        return self._oauth().complete_callback(params, owner=owner)
+
+    def close_logins(self):
+        if self._oauth_manager is not None:
+            self._oauth_manager.close()
 
     # -- PAT 导入（Trae 的 PAT 就是 refreshToken）-------------------------
     def import_pat(self, pat, realm=None, name=None, client=None):

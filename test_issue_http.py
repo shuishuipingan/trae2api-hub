@@ -234,18 +234,18 @@ def main():
         check("未授权 PAT 导入不落盘", listing(acc_dir) == before, listing(acc_dir))
 
         # ---------------------------------------------------------------
-        section("[2] /accounts/login/start：501 JSON（设备授权不支持）")
+        section("[2] /accounts/login/start：浏览器 OAuth pending JSON")
         code, doc, ctype = http.request("POST", "/accounts/login/start",
                                         {"realm": "cn"}, token=token)
-        check("login/start -> 501", code == 501, code)
+        check("login/start -> 200", code == 200, code)
         check("login/start 返回 JSON", "application/json" in ctype, ctype)
-        check("body.ok 为 false", isinstance(doc, dict) and doc.get("ok") is False, doc)
-        check("body.status = unsupported",
-              isinstance(doc, dict) and doc.get("status") == "unsupported", doc)
-        check("body.error.type = unsupported_operation",
-              isinstance(doc, dict)
-              and (doc.get("error") or {}).get("type") == "unsupported_operation",
-              doc.get("error") if isinstance(doc, dict) else doc)
+        check("body 包含随机 state", isinstance(doc, dict) and len(doc.get("state") or "") >= 32, doc)
+        check("body.status = pending",
+              isinstance(doc, dict) and doc.get("status") == "pending", doc)
+        check("body 包含官方授权地址",
+              isinstance(doc, dict) and (doc.get("authorization_url") or "").startswith("https://www.trae.cn/authorization?"), doc)
+        if isinstance(doc, dict) and doc.get("state"):
+            pool.cancel_login(doc["state"], owner=token)
 
         # ---------------------------------------------------------------
         section("[3] /accounts/import：dry-run 与真实导入")
