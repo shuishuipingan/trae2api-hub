@@ -156,10 +156,10 @@ button.mini{padding:3px 9px;font-size:11px}
 .modal-bd{padding:18px 20px}
 .modal-ft{padding:14px 20px;border-top:1px solid var(--line);display:flex;
   justify-content:flex-end;gap:8px}
-.login-link{display:block;word-break:break-all;background:var(--panel2);
+.legacy-login-link{display:block;word-break:break-all;background:var(--panel2);
   border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:12px 0;
   color:var(--accent);text-decoration:none;font-size:12px}
-.login-link:hover{border-color:var(--accent);background:#fff}
+.legacy-login-link:hover{border-color:var(--accent);background:#fff}
 .hint{color:var(--dim);font-size:12px;margin:8px 0}
 .step{display:flex;gap:10px;align-items:flex-start;margin:10px 0}
 .step .n{flex:0 0 20px;height:20px;border-radius:50%;background:var(--panel2);
@@ -272,7 +272,7 @@ a:hover{text-decoration:underline}
 [data-theme="dark"] tbody tr:hover{background:rgba(30,41,59,.55)}
 [data-theme="dark"] button.sec{background:var(--panel);border-color:var(--line)}
 [data-theme="dark"] .modal{background:var(--panel)}
-[data-theme="dark"] .login-link:hover{background:var(--panel2)}
+[data-theme="dark"] .legacy-login-link:hover{background:var(--panel2)}
 [data-theme="dark"] .key-card{background:var(--panel)}
 [data-theme="dark"] .key-card.disabled{background:rgba(30,41,59,.5)}
 [data-theme="dark"] .key-action-btn{background:var(--panel)}
@@ -3697,7 +3697,6 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
 
 
 
-  <!-- 签到与福利中心（双区域：签到能力运行时探测，接口不存在的区域显示原因） -->
 
 
 
@@ -3720,6 +3719,10 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
       <h2 style="margin:0">当前版本模型库与能力清单 <em id="availModelCount"></em></h2>
       <div style="font-size:12px;color:var(--dim)">与官方桌面版一致：官方全部对话模型（含未开通套餐项及官方原因）、官方模型名与介绍、峰谷价、上下文窗口、推理/视觉能力与思考档位</div>
     </div>
+    <p class="hint" style="margin:-2px 0 10px;line-height:1.6">
+      「上下文设置」是<strong>本地 UTF-8 估算的保守预算</strong>：只影响网关侧输入预算，<strong>不截断历史消息</strong>，
+      也<strong>不等于解锁上游官方最大窗口</strong>。选中值按模型目录所属区域保存与校验。
+    </p>
     <div style="overflow-x:auto">
       <table id="modelsTable">
         <thead>
@@ -3799,13 +3802,14 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
       <input id="acctSearch" type="search" placeholder="搜索昵称 / UID" oninput="setAccountSearch(this.value)" aria-label="搜索账号">
     </label>
-    <button onclick="openLoginModal()">+ 添加账号 (OAuth)</button>
+    <button onclick="openAddAccount()">+ 添加账号</button>
     <button class="sec" id="btnCheckin" onclick="doCheckin(this)" style="display:none">每日签到</button>
+
     <button class="sec" onclick="fetchCredits(this)">刷新积分</button>
     <span class="tb-sep" aria-hidden="true"></span>
-    <button class="sec" id="btnScanDesktop" onclick="scanDesktop(this)">扫描本地凭证</button>
-    <button class="sec" onclick="openPatImport()">导入 PAT</button>
-    <button class="sec" onclick="openImport()">导入账号</button>
+    <button class="sec" id="btnScanDesktop" onclick="scanDesktop(this)">扫描本机凭证</button>
+    <button class="sec" onclick="openImport()">导入凭证 JSON</button>
+    <button class="sec" onclick="openRefreshTokenImport()">refreshToken 导入</button>
     <button class="sec" onclick="exportAccounts(this)">导出账号</button>
     <span class="tb-sep" aria-hidden="true"></span>
     <div class="menu-wrap">
@@ -3820,7 +3824,7 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
     <div id="accounts"></div>
   </section>
 
-  <section id="sectionGrowthTasks" style="display:none">
+<section id="sectionGrowthTasks" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div>
         <h2 style="margin:0">签到与福利中心</h2>
@@ -4344,34 +4348,42 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
 </main>
 
 <div class="modal-mask" id="loginModal">
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal" role="dialog" aria-modal="true" style="width:min(620px,100%)">
     <div class="modal-hd">
-      <h2>添加 Trae 账号 (OAuth 设备授权)</h2>
+      <h2>添加 Trae 账号</h2>
       <button class="modal-x" onclick="closeLogin()" aria-label="关闭">×</button>
     </div>
     <div class="modal-bd">
-      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:16px">
-        <div style="font-size:12px;color:var(--dim);margin-bottom:8px;font-weight:600">选择要登录的版本：</div>
-        <div style="display:flex;gap:18px;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="loginRealm" value="cn" id="radioCn" onchange="switchLoginRealm(this.value)">
-            <span><b>国内版</b> (trae.com.cn)</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="loginRealm" value="intl" id="radioIntl" onchange="switchLoginRealm(this.value)">
-            <span><b>国际版</b> (trae.ai)</span>
-          </label>
-        </div>
+      <p class="hint" style="margin-top:0">
+        Trae 客户端没有可用的设备 OAuth 授权流程。请选择下面任意一种方式，导入本机已有登录凭证；
+        所有凭证只提交给本机网关，不会上传到第三方。
+      </p>
+      <div style="display:grid;gap:10px;margin:14px 0">
+        <button class="sec" style="text-align:left;padding:12px 14px" onclick="beginAddByScan(this)">
+          <b>扫描本机已登录凭证</b><br>
+          <span class="hint" style="margin:0">只读检测桌面 App / CLI 的双区登录态，逐条确认后导入</span>
+        </button>
+        <button class="sec" style="text-align:left;padding:12px 14px" onclick="closeLogin();openImport()">
+          <b>导入凭证 JSON</b><br>
+          <span class="hint" style="margin:0">支持本网关导出文件、账号数组、单账号对象；refreshToken 会一并保留</span>
+        </button>
+        <button class="sec" style="text-align:left;padding:12px 14px" onclick="closeLogin();openRefreshTokenImport()">
+          <b>手动填写 refreshToken</b><br>
+          <span class="hint" style="margin:0">已有 refreshToken 时直接入池，网关会换取 access token</span>
+        </button>
       </div>
-      <div class="step" id="step1"><div class="n">1</div><div class="t" id="step1Text">正在申请授权登录链接…</div></div>
-      <div class="step" id="step2"><div class="n">2</div><div class="t">在浏览器里打开下方链接并完成登录授权</div></div>
-      <div id="loginLinkBox"></div>
-      <div class="step" id="step3"><div class="n">3</div><div class="t">等待授权回调完成（自动检测）</div></div>
-      <p class="hint" id="loginStatus" style="font-weight:500"></p>
+      <details style="border-top:1px solid var(--line);padding-top:12px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--dim)">设备授权登录（当前构建不支持）</summary>
+        <p class="hint">面板不会轮询或伪造登录成功。可单次请求服务端，原样展示它返回的 JSON 错误。</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="sec mini" onclick="probeLoginUnsupported(this)">查看服务端响应</button>
+          <span id="loginProbeStatus" class="hint" style="margin:0"></span>
+        </div>
+        <pre id="loginProbeResult" class="mono" style="display:none;max-height:220px;overflow:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11px;white-space:pre-wrap;word-break:break-word"></pre>
+      </details>
     </div>
     <div class="modal-ft">
       <button class="sec" onclick="closeLogin()">关闭</button>
-      <button onclick="restartLogin()">重新生成链接</button>
     </div>
   </div>
 </div>
@@ -4391,43 +4403,44 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
     </div>
     <div class="modal-ft">
       <button class="sec" onclick="refreshDesktopScan(this)">重新扫描</button>
+      <button class="sec" onclick="importAllDesktop(this)">导入全部有效凭证</button>
       <button class="sec" onclick="closeDesktopScan()">关闭</button>
     </div>
   </div>
 </div>
 
-<div class="modal-mask" id="patModal">
+<div class="modal-mask" id="refreshTokenModal">
   <div class="modal" role="dialog" aria-modal="true" style="width:min(560px,100%)">
     <div class="modal-hd">
-      <h2>导入 PAT (Personal Access Token)</h2>
-      <button class="modal-x" onclick="closePatImport()" aria-label="关闭">×</button>
+      <h2>使用 refreshToken 导入</h2>
+      <button class="modal-x" onclick="closeRefreshTokenImport()" aria-label="关闭">×</button>
     </div>
     <div class="modal-bd">
       <p class="hint" style="margin-top:0">
-        在 Trae 网页版「设置 → Personal Access Token」创建 <code>pt-</code> 开头的令牌，
-        粘贴到下方并选择所属区域。网关会自动交换 jobToken 并拉取账号身份入池。
+        从 Trae 客户端的账号文件或本网关导出文档中取出 <code>refreshToken</code>，粘贴到下方并选择所属区域。
+        网关会用它换取 access token 后入池；不会显示或回传令牌明文。
       </p>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-        <input id="patInput" type="password" placeholder="pt- 开头的 Personal Access Token"
+        <input id="refreshTokenInput" type="password" placeholder="粘贴 refreshToken"
                autocomplete="off"
                style="width:100%;background:var(--panel2);border:1px solid var(--line);
                       border-radius:8px;padding:9px 12px;color:var(--fg);font:inherit">
         <div style="display:flex;gap:18px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="patRealm" value="cn" id="patRadioCn" checked>
+            <input type="radio" name="rtRealm" value="cn" id="rtRadioCn" checked>
             <span><b>国内版</b> (trae.com.cn)</span>
           </label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="patRealm" value="intl" id="patRadioIntl">
+            <input type="radio" name="rtRealm" value="intl" id="rtRadioIntl">
             <span><b>国际版</b> (trae.ai)</span>
           </label>
         </div>
-        <div id="patBody" style="min-height:20px"></div>
+        <div id="refreshTokenBody" style="min-height:20px"></div>
       </div>
     </div>
     <div class="modal-ft">
-      <button class="sec" onclick="closePatImport()">关闭</button>
-      <button class="primary" onclick="doImportPat(this)">导入 PAT</button>
+      <button class="sec" onclick="closeRefreshTokenImport()">关闭</button>
+      <button class="primary" onclick="doImportRefreshToken(this)">导入 refreshToken</button>
     </div>
   </div>
 </div>
@@ -4440,11 +4453,18 @@ input[type=text]:focus,input[type=search]:focus,input[type=password]:focus,input
     </div>
     <div class="modal-bd">
       <p class="hint" style="margin-top:0">
-        选择一个账号 JSON 文件。支持本网关导出的文件、账号数组、单个账号对象
-        (<code>{"accessToken":…}</code>)。
+        选择账号 JSON 文件，或直接粘贴内容。支持本网关导出文件、账号数组、单个账号对象；
+        含 <code>refreshToken</code> 的凭证会一并保留，供网关续期。
       </p>
       <label class="admin-field">导入到分组 <input id="importGroup" list="adminGroupNames" placeholder="留空为未分组"><datalist id="adminGroupNames"></datalist></label>
-      <div id="importBody"><p class="hint">尚未选择文件。</p></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <textarea id="importPaste" class="mono" rows="4" placeholder='粘贴账号 JSON，例如 {"refreshToken":"…","realm":"cn"}'
+          style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--fg);font:12px/1.6 ui-monospace,monospace;resize:vertical"></textarea>
+        <div style="display:flex;justify-content:flex-end">
+          <button class="sec mini" onclick="parseImportPaste(this)">解析并预览粘贴内容</button>
+        </div>
+      </div>
+      <div id="importBody"><p class="hint">尚未选择文件或粘贴内容。</p></div>
     </div>
     <div class="modal-ft">
       <label class="sec" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
@@ -4686,7 +4706,8 @@ function cpStartLogin(){
 }
 function cpLoginVeil(){if(typeof document.createElement!=='function'||cpReduced())return;const veil=document.createElement('div');veil.className='cp-login-reveal-veil';document.body.appendChild(veil);setTimeout(()=>{try{veil.remove();}catch(e){}},720);}
 
-var loginState = null, loginTimer = null;
+/* 添加账号：Trae 没有设备 OAuth。面板只提供三条真实导入路径：
+   本机扫描 / 凭证 JSON / 手动 refreshToken。不做轮询、不伪造登录成功。 */
 
 /* ---- Local admin design: additive helpers; existing IDs and APIs remain authoritative. ---- */
 function persistPanelToken(token, remember){
@@ -4857,94 +4878,53 @@ async function adminCopyExample(i){try{await navigator.clipboard.writeText(docum
 document.addEventListener('DOMContentLoaded',function(){adminRenderApiExamples();const remember=document.getElementById('panelRemember');if(remember){try{remember.checked=!!localStorage.getItem(PANEL_STORE);}catch(e){}}});
 
 
-function openLogin(){
+function openAddAccount(){
   const m = document.getElementById("loginModal");
   if(m) m.classList.add("show");
 }
+/* 兼容旧调用点：一律落到真实的「添加账号」面板。 */
+function openLoginModal(){ openAddAccount(); }
 
 function closeLogin(){
   const m = document.getElementById("loginModal");
   if(m) m.classList.remove("show");
-  if(loginTimer){ clearInterval(loginTimer); loginTimer = null; }
-  if(loginState){ postJSON("/accounts/login/cancel", {state: loginState}).catch(()=>{}); loginState = null; }
 }
 
-function openLoginModal(){
-  openLogin();
-  const isCn = (window.VIEW_REALM === "cn");
-  const rCn = document.getElementById("radioCn");
-  const rIntl = document.getElementById("radioIntl");
-  if(rCn) rCn.checked = isCn;
-  if(rIntl) rIntl.checked = !isCn;
-  triggerLoginForSelectedRealm();
+function beginAddByScan(btn){
+  closeLogin();
+  scanDesktop(btn || document.getElementById("btnScanDesktop"));
 }
 
-function switchLoginRealm(realm){
-  triggerLoginForSelectedRealm();
-}
-
-function restartLogin(){
-  triggerLoginForSelectedRealm();
-}
-
-async function triggerLoginForSelectedRealm(){
-  const checkedRadio = document.querySelector('input[name="loginRealm"]:checked');
-  const realm = checkedRadio ? checkedRadio.value : (window.VIEW_REALM || "intl");
-  const isCn = (realm === "cn");
-
-  if(loginTimer){ clearInterval(loginTimer); loginTimer = null; }
-  if(loginState){ postJSON("/accounts/login/cancel", {state: loginState}).catch(()=>{}); loginState = null; }
-
-  const linkBox = document.getElementById("loginLinkBox");
-  const statusBox = document.getElementById("loginStatus");
-  if(linkBox) linkBox.innerHTML = "";
-  if(statusBox) statusBox.textContent = "";
-
-  const s1 = document.getElementById("step1");
-  const s2 = document.getElementById("step2");
-  const s3 = document.getElementById("step3");
-  if(s1) s1.className = "step active";
-  if(s2) s2.className = "step";
-  if(s3) s3.className = "step";
-
-  const s1Text = document.getElementById("step1Text");
-  if(s1Text) s1Text.textContent = isCn ? "正在向 trae.com.cn (国内版) 申请设备授权..." : "正在向 trae.ai (国际版) 申请设备授权...";
-
+/* 单次探测服务端是否还提供设备授权；只展示可读 JSON 错误，绝不轮询。 */
+async function probeLoginUnsupported(btn){
+  const statusEl = document.getElementById("loginProbeStatus");
+  const pre = document.getElementById("loginProbeResult");
+  const realm = (window.VIEW_REALM === "cn") ? "cn" : "intl";
+  if(btn){ btn.disabled = true; btn.textContent = "请求中..."; }
+  if(statusEl) statusEl.textContent = "正在请求 /accounts/login/start ...";
+  if(pre){ pre.style.display = "none"; pre.textContent = ""; }
   try{
-    const r = await postJSON("/accounts/login/start", {platform: "CLI", realm: realm});
-    loginState = r.state;
-    if(s1) s1.className = "step done";
-    if(s2) s2.className = "step active";
-    if(linkBox) linkBox.innerHTML =
-      '<a class="login-link" href="' + esc(r.authUrl) + '" target="_blank" rel="noopener">' + esc(r.authUrl) + '</a>'
-      + '<div class="hint">点击上方链接在浏览器里完成登录授权。登录完成后本窗口会自动检测并完成入池。</div>';
-    pollLogin();
-    loginTimer = setInterval(pollLogin, 2500);
-  }catch(e){
-    if(statusBox) statusBox.textContent = "发起失败: " + e.message;
-    if(s1) s1.className = "step";
-  }
-}
-
-async function pollLogin(){
-  if(!loginState) return;
-  try{
-    const r = await getJSON("/accounts/login/poll?state=" + encodeURIComponent(loginState));
-    const s3 = document.getElementById("step3");
-    const statusBox = document.getElementById("loginStatus");
-    if(s3) s3.className = "step active";
-    if(statusBox) statusBox.textContent = r.message || r.status;
-    if(r.status === "ok"){
-      if(s3) s3.className = "step done";
-      if(statusBox) statusBox.textContent = "登录成功：" + (r.account && r.account.nickname) + " 已加入账号池";
-      if(loginTimer){ clearInterval(loginTimer); loginTimer = null; }
-      loginState = null;
-      await loadAccounts();
-      setTimeout(closeLogin, 1200);
-    }else if(r.status === "error" || r.status === "expired" || r.status === "unknown"){
-      if(loginTimer){ clearInterval(loginTimer); loginTimer = null; }
+    const resp = await fetch("/accounts/login/start", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({platform: "CLI", realm: realm})
+    });
+    const text = await resp.text();
+    let body = {};
+    try { body = text ? JSON.parse(text) : {}; }
+    catch(e) { body = {raw: text}; }
+    const pretty = JSON.stringify(body, null, 2);
+    if(resp.ok){
+      if(statusEl) statusEl.textContent = "服务端仍返回了设备授权响应；本面板不提供该流程，也不会轮询。请使用上方三种导入方式。";
+    }else{
+      if(statusEl) statusEl.textContent = formatApiError(Object.assign({status: resp.status}, body), "HTTP " + resp.status);
     }
-  }catch(e){}
+    if(pre){ pre.textContent = pretty || ("HTTP " + resp.status); pre.style.display = "block"; }
+  }catch(e){
+    if(statusEl) statusEl.textContent = formatApiError(e, "请求失败");
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = "查看服务端响应"; }
+  }
 }
 
 
@@ -5084,10 +5064,10 @@ function updateUI(){
     cardGw.style.background = isIntlGw ? "rgba(37,99,235,.03)" : "rgba(220,38,38,.03)";
   }
 
+  // 计算当前绑定与生效的 Key 数量
   const btnCheckin = document.getElementById("btnCheckin");
   if(btnCheckin) btnCheckin.style.display = "inline-block";  // 双区域：能力运行时探测
 
-  // 计算当前绑定与生效的 Key 数量
   const keys = (typeof API_KEY_ROWS !== 'undefined' && API_KEY_ROWS.length) ? API_KEY_ROWS : (window.API_KEY_ROWS || []);
   const intlKeys = keys.filter(k => k.enabled !== false && k.realm === 'intl').length;
   const cnKeys = keys.filter(k => k.enabled !== false && k.realm === 'cn').length;
@@ -5321,6 +5301,8 @@ async function setModelCatalogRealm(realm){
 }
 async function loadModels(){
   const realm = getModelCatalogRealm(), request = ++MODEL_CATALOG_REQUEST;
+  // 模型上下文保存必须用**目录所属区域**校验，不能拿当前 UI 区域猜。
+  window.MODEL_REALM = realm;
   const hit = MODELS_CACHE[realm];
   // Clear the previous region immediately: old rows must never wear the new region label.
   MODELS_DATA = hit || [];
@@ -5508,20 +5490,22 @@ function renderAvailableModels(){
     }
     // 6. 上下文设置（issue #106）：官方 context_config 档位下拉；选中值发往网关
     //    settings.model_context，build_trae_body 按它抬 max_input_tokens。
-    const ctxKey = (m.upstream_key && m.upstream_key !== m.id)
-      ? m.upstream_key : m.id;
+    const ctxKey = contextKeyOf(m);
     const ctxLabels = (m.context_window_labels && m.context_window_labels.length)
       ? m.context_window_labels : (m.context_windows || []);
-    const ctxCur = String((window.SETTINGS_MODEL_CONTEXT || {})[ctxKey]
-      || (window.SETTINGS_MODEL_CONTEXT || {})[m.id] || '');
+    const ctxCur = resolveContextSelection(m, window.SETTINGS_MODEL_CONTEXT || {});
+    const ctxEq = contextLabelEquals;
     const ctxSel = ctxLabels.length
       ? '<select class="ctx-select" data-model="' + esc(ctxKey) + '"'
+        + ' title="' + esc(contextBudgetNote()) + '"'
         + ' onchange="saveModelContext(this.dataset.model, this.value)">'
         + '<option value="">默认' + (m.context_window_default
             ? (' (' + esc(m.context_window_default) + ')') : '') + '</option>'
-        + ctxLabels.map(l => '<option value="' + esc(l) + '"' + (ctxCur === String(l) ? ' selected' : '') + '>'
+        + ctxLabels.map(l => '<option value="' + esc(l) + '"' + (ctxEq(ctxCur, l) ? ' selected' : '') + '>'
             + esc(l) + '</option>').join('')
         + '</select>'
+        + '<div class="hint" style="font-size:10px;line-height:1.35;margin-top:3px;max-width:150px">'
+        + '本地 UTF-8 保守预算 · 不截断历史 · 非官方最大窗口</div>'
       : '<span style="color:var(--dim)">—</span>';
     return '<tr>'
       + '<td style="text-align:left">' + idLines.join('') + '</td>'
@@ -5775,62 +5759,6 @@ function renderGrowthTasks(r){
     }).join('');
 }
 
-// 「领取全部福利」：每日签到/活动（含券类）+ Pro 福利包，一次点完（均幂等）
-async function runGrowthTasks(btn){
-  btn.disabled = true;
-  const oldText = btn.textContent;
-  btn.textContent = '领取中...';
-  const logBox = document.getElementById("taskLogBox");
-  if(logBox){
-    logBox.style.display = 'block';
-    logBox.innerHTML = '<div style="color:var(--accent)">[福利] 正在领取全部福利（每日签到 + 限时活动 + Pro 福利包）...</div>';
-  }
-  try{
-    const payload = {};
-    if(CURRENT_GROWTH_UID && CURRENT_GROWTH_UID !== 'all'){
-      payload.uid = CURRENT_GROWTH_UID;
-    }
-    const r = await postJSON("/tasks/run", payload);
-    const logs = (r.logs || []).slice();
-    let proMsg = '';
-    try{
-      const t = await postJSON("/tasks/travel", payload);
-      if(t && t.msg) proMsg = t.msg;
-      logs.push('--- Pro 福利包 ---');
-      (t.logs || []).forEach(l => logs.push(l));
-    }catch(e2){ logs.push('Pro 福利包领取跳过: ' + (e2 && e2.message)); }
-    if(logBox){
-      logBox.innerHTML = logs.map(l => '<div>' + esc(l) + '</div>').join('');
-      logBox.scrollTop = logBox.scrollHeight;
-    }
-    await Promise.all([loadAccounts(), loadGrowthTasks({force:true})]);
-    const sumC = r.credit_added != null ? ('，活动新增 +' + r.credit_added + ' 积分') : '';
-    toast("全部福利领取完成" + sumC + (proMsg ? ('；Pro: ' + proMsg.slice(0, 60)) : '') + "！");
-  }catch(e){
-    if(logBox) logBox.innerHTML += '<div style="color:var(--warn)">执行出错: ' + esc(e.message) + '</div>';
-    toast("任务执行失败: " + e.message, "bad");
-  }finally{
-    btn.disabled = false;
-    btn.textContent = oldText;
-  }
-}
-
-async function triggerCatTravel(btn){
-  if(btn){ btn.disabled = true; btn.textContent = '领取中...'; }
-  try{
-    const payload = {};
-    if(CURRENT_GROWTH_UID && CURRENT_GROWTH_UID !== 'all'){
-      payload.uid = CURRENT_GROWTH_UID;
-    }
-    const r = await postJSON("/tasks/travel", payload);
-    toast(r.msg || (r.ok ? "福利包领取完成" : "操作失败"), r.ok ? "ok" : "warn");
-    await Promise.all([loadAccounts(), loadGrowthTasks({force:true})]);
-  }catch(e){
-    toast("福利包领取失败: " + e.message, "bad");
-  }finally{
-    if(btn){ btn.disabled = false; btn.textContent = '领取福利包'; }
-  }
-}
 
 
 
@@ -6535,6 +6463,7 @@ async function doCheckin(btn){
   finally { btn.disabled = false; btn.textContent = ot; }
 }
 
+
 var fmt = n => (n ?? 0).toLocaleString('en-US');
 var esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));const ms = v => v == null ? '—' : (v >= 1000 ? (v/1000).toFixed(2) + ' s' : Math.round(v) + ' ms');
 var pct = v => v == null ? '—' : v.toFixed(1) + '%';
@@ -6727,6 +6656,7 @@ function teamBadge(a){
     + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>'
     + '企业' + (a.orgLabel ? (" · " + esc(a.orgLabel)) : "") + '</span>';
 }
+// 今日是否已签到（服务端 public() 的 checkedInToday / lastCheckinDate）
 // 今日是否已签到（服务端 public() 的 checkedInToday / lastCheckinDate）
 function checkinBadge(a){
   if(a && a.checkedInToday){
@@ -7041,8 +6971,8 @@ function renderAccounts(){
       + '<div style="color:var(--dim);font-size:13px;margin-bottom:18px">'
       +   '请先登录或导入一个 ' + viewName + ' 账号，之后相关请求都会走该账号'
       + '</div>'
-      + '<button onclick="openLoginModal()" style="font-size:14px;padding:10px 22px">'
-      +   '登录新账号 (OAuth)'
+      + '<button onclick="openAddAccount()" style="font-size:14px;padding:10px 22px">'
+      +   '添加账号'
       + '</button>'
       + '</div>';
     return;
@@ -7248,12 +7178,126 @@ async function exportOne(uid){
   }
 }
 
+/* BEGIN-IMPORT-CONTRACT — 与后端导入契约解耦的纯函数；test_issue_dashboard.js 按锚点切片回归 */
+function normalizeImportPreview(result){
+  result = result || {};
+  var out = {added: [], updated: [], skipped: [], invalid: [], errors: []};
+  if(Array.isArray(result.accounts)){
+    result.accounts.forEach(function(row){
+      row = row || {};
+      var action = String(row.action || row.status || '').toLowerCase();
+      if(action === 'update' || action === 'overwrite' || action === 'updated') out.updated.push(row);
+      else if(action === 'skip' || action === 'skipped' || action === 'exists') out.skipped.push(row);
+      else if(action === 'invalid' || action === 'error') out.invalid.push(row);
+      else out.added.push(row);
+    });
+  }else{
+    ['added', 'updated', 'skipped', 'invalid'].forEach(function(key){
+      if(Array.isArray(result[key])) out[key] = out[key].concat(result[key]);
+    });
+  }
+  if(Array.isArray(result.errors)) out.errors = out.errors.concat(result.errors);
+  else if(result.errors) out.errors = [result.errors];
+  out.counts = {
+    add: out.added.length,
+    update: out.updated.length,
+    skip: out.skipped.length,
+    invalid: out.invalid.length,
+    errors: out.errors.length
+  };
+  return out;
+}
+
+function summarizeImportResult(result, total){
+  result = result || {};
+  var asInt = function(value){
+    var n = Number(value);
+    return (isFinite(n) && n > 0) ? Math.floor(n) : 0;
+  };
+  var hasNumericCounts = ['imported', 'updated', 'skipped'].some(function(key){
+    return Object.prototype.hasOwnProperty.call(result, key) && typeof result[key] === 'number';
+  });
+  var imported, updated, skipped;
+  if(hasNumericCounts){
+    imported = asInt(result.imported);
+    updated = asInt(result.updated);
+    skipped = asInt(result.skipped);
+  }else{
+    imported = Array.isArray(result.added) ? result.added.length : asInt(result.added);
+    updated = Array.isArray(result.updated) ? result.updated.length : asInt(result.updated);
+    skipped = Array.isArray(result.skipped) ? result.skipped.length : asInt(result.skipped);
+    if(Array.isArray(result.imported)) imported = result.imported.length;
+  }
+  var errors = Array.isArray(result.errors) ? result.errors.slice() : (result.errors ? [result.errors] : []);
+  if(!errors.length && Array.isArray(result.invalid)){
+    errors = result.invalid.map(function(item){
+      return (item && typeof item === 'object') ? (item.reason || item.error || item.uid || '无效账号') : item;
+    });
+  }
+  return {
+    imported: imported,
+    updated: updated,
+    skipped: skipped,
+    errors: errors,
+    invalid: Array.isArray(result.invalid) ? result.invalid.length : 0,
+    total: asInt(total),
+    touched: imported + updated
+  };
+}
+
+function formatApiError(payload, fallback){
+  if(payload instanceof Error) return payload.message || fallback || '请求失败';
+  payload = payload || {};
+  var nested = payload.error;
+  var message = payload.message
+    || (typeof nested === 'string' ? nested : (nested && nested.message))
+    || payload.detail || payload.reason || fallback || '请求失败';
+  var prefix = '';
+  if(payload.status !== undefined && payload.status !== null && payload.status !== '' && String(payload.status) !== '200'){
+    prefix = '[' + payload.status + '] ';
+  }
+  if(nested && typeof nested === 'object' && nested.type) message += '（' + nested.type + '）';
+  return prefix + message;
+}
+/* END-IMPORT-CONTRACT */
+
+/* BEGIN-CONTEXT-CONTRACT — 模型上下文选中值解析；test_issue_dashboard.js 按锚点回归 */
+function contextKeyOf(model){
+  model = model || {};
+  return (model.upstream_key && model.upstream_key !== model.id) ? model.upstream_key : (model.id || '');
+}
+function contextLabelEquals(a, b){
+  if(a === '' || a === null || a === undefined) return false;
+  if(b === '' || b === null || b === undefined) return false;
+  if(String(a) === String(b)) return true;
+  var na = Number(a), nb = Number(b);
+  return isFinite(na) && isFinite(nb) && na === nb;
+}
+function resolveContextSelection(model, storedMap){
+  model = model || {};
+  if(model.context_window_selected !== undefined && model.context_window_selected !== null
+     && model.context_window_selected !== ''){
+    return String(model.context_window_selected);
+  }
+  var map = storedMap || {};
+  var key = contextKeyOf(model);
+  if(key && map[key] !== undefined && map[key] !== null) return String(map[key]);
+  if(model.id && map[model.id] !== undefined && map[model.id] !== null) return String(map[model.id]);
+  return '';
+}
+function contextBudgetNote(){
+  return '本地 UTF-8 估算的保守预算：不截断历史，也不等于解锁上游官方最大窗口';
+}
+/* END-CONTEXT-CONTRACT */
+
 var importRows = null;   // 已解析、待导入的账号行
 
 function openImport(){
   importRows = null;
   const m = document.getElementById('importModal');
   const body = document.getElementById('importBody');
+  const paste = document.getElementById('importPaste');
+  if(paste) paste.value = '';
   const ow = document.getElementById('importOverwrite');
   if(ow) ow.checked = false;
   if(body) body.innerHTML = '<p class="hint">正在打开文件…</p>';
@@ -7279,59 +7323,86 @@ function closeImport(){
 }
 
 async function readImportFile(file){
-  const body = document.getElementById('importBody');
   try{
     const text = await file.text();
     let doc;
     try{ doc = JSON.parse(text); }
     catch(e){ throw new Error('文件不是合法 JSON'); }
-
-    // Accept the export document, a bare array, or a single account object.
-    let rows;
-    if(Array.isArray(doc)) rows = doc;
-    else if(doc && Array.isArray(doc.accounts)) rows = doc.accounts;
-    else if(doc && (doc.accessToken || doc.auth)) rows = [doc];
-    else throw new Error('文件里没有找到账号（既没有 accounts 数组，也不是单个账号）');
-
-    if(!rows.length) throw new Error('账号列表是空的');
-    importRows = rows;
-
-    // Dry-run first so the user sees exactly what will happen.
-    const r = await postJSON('/accounts/import', {data: doc, dryRun: true});
-    renderImportPreview(file.name, r.result || {}, rows.length);
+    await parseImportDocument(doc, file.name);
   }catch(e){
-    importRows = null;
-    const btn = document.getElementById('btnImportCommit');
-    if(btn) btn.disabled = true;
-    if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">读取失败: ' + esc(e.message) + '</p>';
+    showImportReadError(e);
   }
+}
+
+async function parseImportPaste(btn){
+  const area = document.getElementById('importPaste');
+  const text = (area && area.value || '').trim();
+  if(!text){ toast('先粘贴账号 JSON 内容', 'warn'); return; }
+  if(btn){ btn.disabled = true; btn.textContent = '解析中...'; }
+  try{
+    let doc;
+    try{ doc = JSON.parse(text); }
+    catch(e){ throw new Error('粘贴内容不是合法 JSON'); }
+    await parseImportDocument(doc, '粘贴内容');
+  }catch(e){
+    showImportReadError(e);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '解析并预览粘贴内容'; }
+  }
+}
+
+async function parseImportDocument(doc, label){
+  const body = document.getElementById('importBody');
+  let rows;
+  if(Array.isArray(doc)) rows = doc;
+  else if(doc && Array.isArray(doc.accounts)) rows = doc.accounts;
+  else if(doc && (doc.accessToken || doc.refreshToken || doc.refresh_token || doc.token || doc.auth)) rows = [doc];
+  else throw new Error('内容里没有找到账号（既没有 accounts 数组，也不是单个账号）');
+  if(!rows.length) throw new Error('账号列表是空的');
+  importRows = rows;
+  const r = await postJSON('/accounts/import', {data: doc, dryRun: true});
+  renderImportPreview(label, r.result || {}, rows.length);
+}
+
+function showImportReadError(e){
+  importRows = null;
+  const btn = document.getElementById('btnImportCommit');
+  const body = document.getElementById('importBody');
+  if(btn) btn.disabled = true;
+  if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">读取失败: ' + esc(formatApiError(e, '读取失败')) + '</p>';
 }
 
 function renderImportPreview(filename, res, total){
   const body = document.getElementById('importBody');
   const btn = document.getElementById('btnImportCommit');
-  const added = res.added || [], updated = res.updated || [];
-  const skipped = res.skipped || [], invalid = res.invalid || [];
+  const view = normalizeImportPreview(res);
+  const added = view.added, updated = view.updated;
+  const skipped = view.skipped, invalid = view.invalid, errors = view.errors;
 
   const rowsHtml = list => list.map(x => {
-    const uid = (typeof x === 'string' ? x : x.uid) || '?';
-    const reason = (typeof x === 'object' && x.reason) ? ' — ' + esc(x.reason) : '';
-    return '<li><code>' + esc(String(uid).slice(0,8)) + '</code>' + reason + '</li>';
+    const uid = (typeof x === 'string' ? x : (x.uid || x.id || x.name)) || '?';
+    const reason = (typeof x === 'object' && (x.reason || x.error)) ? ' — ' + esc(x.reason || x.error) : '';
+    return '<li><code>' + esc(String(uid).slice(0,12)) + '</code>' + reason + '</li>';
+  }).join('');
+  const errorsHtml = list => list.map(x => {
+    const text = (typeof x === 'string') ? x : formatApiError(x, JSON.stringify(x));
+    return '<li>' + esc(text) + '</li>';
   }).join('');
 
-  let html = '<p class="hint" style="margin-top:0">文件：<b>' + esc(filename) + '</b>'
-    + ' · 共 ' + total + ' 条</p>';
+  let html = '<p class="hint" style="margin-top:0">来源：<b>' + esc(filename) + '</b>'
+    + ' · 共 ' + (total || view.counts.add + view.counts.update + view.counts.skip) + ' 条</p>';
   html += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">'
     + '<span>新增 <b style="color:var(--accent2)">' + added.length + '</b></span>'
     + '<span>覆盖 <b>' + updated.length + '</b></span>'
     + '<span>跳过 <b>' + skipped.length + '</b></span>'
-    + '<span>无效 <b style="color:var(--warn)">' + invalid.length + '</b></span>'
+    + '<span>错误 <b style="color:var(--warn)">' + (errors.length + invalid.length) + '</b></span>'
     + '</div>';
 
   if(added.length)   html += '<div style="margin-bottom:8px"><b>将新增</b><ul class="hint" style="margin:4px 0 0 18px;padding:0">' + rowsHtml(added) + '</ul></div>';
   if(updated.length) html += '<div style="margin-bottom:8px"><b>将覆盖</b><ul class="hint" style="margin:4px 0 0 18px;padding:0">' + rowsHtml(updated) + '</ul></div>';
   if(skipped.length) html += '<div style="margin-bottom:8px"><b>将跳过</b><ul class="hint" style="margin:4px 0 0 18px;padding:0">' + rowsHtml(skipped) + '</ul></div>';
   if(invalid.length) html += '<div style="margin-bottom:8px"><b>无法解析</b><ul class="hint" style="margin:4px 0 0 18px;padding:0">' + rowsHtml(invalid) + '</ul></div>';
+  if(errors.length)  html += '<div style="margin-bottom:8px"><b style="color:var(--warn)">错误</b><ul class="hint" style="margin:4px 0 0 18px;padding:0;color:var(--warn)">' + errorsHtml(errors) + '</ul></div>';
 
   if(!added.length && !updated.length){
     html += '<p class="hint" style="color:var(--warn)">没有可导入的账号。'
@@ -7355,18 +7426,48 @@ async function commitImport(btn){
   if(btn){ btn.disabled = true; btn.textContent = '导入中...'; }
   try{
     const r = await postJSON('/accounts/import', {data: importRows, overwrite: overwrite, group: (document.getElementById('importGroup')?.value || '').trim()});
-    const res = r.result || {};
-    const n = (res.added || []).length + (res.updated || []).length;
-    toast('导入完成：新增 ' + (res.added || []).length
-          + '，覆盖 ' + (res.updated || []).length
-          + '，跳过 ' + (res.skipped || []).length
-          + '，无效 ' + (res.invalid || []).length);
-    if(n > 0){ closeImport(); await loadAccounts(); }
-    else { renderImportPreview('（已导入）', res, importRows.length); }
+    const summary = summarizeImportResult(r.result || r, importRows.length);
+    toast('导入完成：新增 ' + summary.imported
+          + '，更新 ' + summary.updated
+          + '，跳过 ' + summary.skipped
+          + (summary.errors.length ? ('，错误 ' + summary.errors.length) : ''));
+    if(summary.touched > 0 && !summary.errors.length){
+      closeImport();
+      await loadAccounts();
+    }else if(summary.touched > 0){
+      await loadAccounts();
+      renderImportResult(summary);
+    }else{
+      renderImportResult(summary);
+    }
   }catch(e){
-    toast('导入失败: ' + e.message, 'err');
+    toast('导入失败: ' + formatApiError(e, '导入失败'), 'err');
     if(btn){ btn.disabled = false; btn.textContent = '确认导入'; }
   }
+}
+
+function renderImportResult(summary){
+  const body = document.getElementById('importBody');
+  const btn = document.getElementById('btnImportCommit');
+  if(!body) return;
+  const errors = summary.errors || [];
+  let html = '<p class="hint" style="margin-top:0">服务端已处理本次导入。</p>'
+    + '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span>新增 <b style="color:var(--accent2)">' + summary.imported + '</b></span>'
+    + '<span>更新 <b>' + summary.updated + '</b></span>'
+    + '<span>跳过 <b>' + summary.skipped + '</b></span>'
+    + '<span>错误 <b style="color:var(--warn)">' + errors.length + '</b></span>'
+    + '</div>';
+  if(errors.length){
+    html += '<div style="margin-bottom:8px"><b style="color:var(--warn)">服务端错误</b><ul class="hint" style="margin:4px 0 0 18px;padding:0;color:var(--warn)">'
+      + errors.map(x => '<li>' + esc(typeof x === 'string' ? x : formatApiError(x, JSON.stringify(x))) + '</li>').join('')
+      + '</ul></div>';
+  }
+  if(!summary.touched){
+    html += '<p class="hint" style="color:var(--warn)">没有任何账号被新增或更新。请检查文件内容与「覆盖同 UID 账号」选项。</p>';
+  }
+  body.innerHTML = html;
+  if(btn){ btn.disabled = true; btn.textContent = '确认导入'; }
 }
 
 /* ---------------- 本机凭证两步扫描导入（官方 App + CLI，双区） ---------------- */
@@ -7425,7 +7526,7 @@ function renderDesktopScan(list){
   if(!valid.length){
     body.innerHTML = '<p class="hint">未在本机检测到已登录的 Trae 凭证。<br>'
       + '请确认已登录 Trae 桌面 App（国际版 / 国内版）或 Trae CLI 后点「重新扫描」，'
-      + '也可以用「+ 添加账号 (OAuth)」或「🔑 导入 PAT」。</p>';
+      + '也可以用「+ 添加账号」里的「导入凭证 JSON」或「手动填写 refreshToken」。</p>';
     return;
   }
 
@@ -7484,22 +7585,39 @@ function renderDesktopScan(list){
   });
 }
 
+function desktopImportSummary(data){
+  const list = Array.isArray(data && data.imported) ? data.imported : [];
+  const count = list.length || (data && typeof data.imported === 'number' ? data.imported : 0);
+  const errors = Array.isArray(data && data.errors) ? data.errors : [];
+  return {first: list[0] || null, count: count, errors: errors};
+}
+
 async function doImportDesktop(btn, path, realm){
+  if(!path){ toast('该凭证没有可用路径，无法导入', 'bad'); return; }
   btn.disabled = true;
   btn.textContent = '导入中...';
   // 导入本身和导入后的界面刷新要分开兜错：导入一旦返回成功，后面刷新面板
   // 任何一个环节抛错都不该让用户看到「导入失败」——账号其实已经进去了。
-  let a = {};
+  let summary = null;
   try{
     const r = await postJSON('/accounts/import/desktop', {path: path, realm: realm});
-    a = (r.imported || [])[0] || {};
+    summary = desktopImportSummary(r);
+    if(!summary.count){
+      const msg = summary.errors.length ? summary.errors.map(x => formatApiError(x, '导入失败')).join('；')
+                                        : '服务端未返回已导入账号，请重新扫描后再试';
+      toast('导入失败: ' + msg, 'bad');
+      return;
+    }
   }catch(e){
-    toast('导入失败: ' + e.message, 'bad');
+    toast('导入失败: ' + formatApiError(e, '导入失败'), 'bad');
     btn.disabled = false;
     btn.textContent = '导入';
     return;
   }
-  toast('已导入 ' + (a.nickname || (a.uid||'').slice(0,8)) + ' 到 ' + (a.realm === 'cn' ? '国内版' : '国际版'));
+  const a = summary.first || {};
+  toast(summary.count > 1
+    ? ('已导入 ' + summary.count + ' 个账号')
+    : ('已导入 ' + (a.nickname || (a.uid||'').slice(0,8)) + ' 到 ' + (a.realm === 'cn' ? '国内版' : '国际版')));
   if(a.uid && window.SCAN_POOL) window.SCAN_POOL.add(a.uid);
   if(a.realm && a.realm !== window.VIEW_REALM){
     toast('该账号属于' + (a.realm === 'cn' ? '国内版' : '国际版')
@@ -7515,49 +7633,152 @@ async function doImportDesktop(btn, path, realm){
   } catch(e2) { /* keep the refreshed toasts; list will refresh on next scan */ }
 }
 
-/* ---------------------------- PAT 导入弹窗 ---------------------------- */
-function openPatImport(){
-  const m = document.getElementById('patModal');
-  const body = document.getElementById('patBody');
+async function importAllDesktop(btn){
+  if(btn){ btn.disabled = true; btn.textContent = '导入中...'; }
+  try{
+    const r = await postJSON('/accounts/import/desktop', {all: true});
+    const summary = desktopImportSummary(r);
+    if(!summary.count){
+      const msg = summary.errors.length ? summary.errors.map(x => formatApiError(x, '导入失败')).join('；')
+                                        : '没有可导入的有效凭证';
+      toast('批量导入失败: ' + msg, 'bad');
+      return;
+    }
+    toast('已导入 ' + summary.count + ' 个本机凭证');
+    await loadAccounts();
+    await refresh();
+    const s = await postJSON('/accounts/import/desktop', {});
+    if(s.pool_uids) window.SCAN_POOL = new Set(s.pool_uids);
+    renderDesktopScan(s.detected || []);
+  }catch(e){
+    toast('批量导入失败: ' + formatApiError(e, '导入失败'), 'bad');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '导入全部有效凭证'; }
+  }
+}
+
+/* ---------------------------- refreshToken 导入 ---------------------------- */
+function openRefreshTokenImport(){
+  const m = document.getElementById('refreshTokenModal');
+  const body = document.getElementById('refreshTokenBody');
   if(body) body.innerHTML = '';
-  const input = document.getElementById('patInput');
+  const input = document.getElementById('refreshTokenInput');
   if(input) input.value = '';
-  const rCn = document.getElementById('patRadioCn');
-  const rIntl = document.getElementById('patRadioIntl');
+  const rCn = document.getElementById('rtRadioCn');
+  const rIntl = document.getElementById('rtRadioIntl');
   if(rCn) rCn.checked = (window.VIEW_REALM !== 'intl');
   if(rIntl) rIntl.checked = (window.VIEW_REALM === 'intl');
   if(m) m.classList.add('show');
 }
 
-function closePatImport(){
-  const m = document.getElementById('patModal');
+function closeRefreshTokenImport(){
+  const m = document.getElementById('refreshTokenModal');
   if(m) m.classList.remove('show');
 }
 
-async function doImportPat(btn){
-  const input = document.getElementById('patInput');
-  const body = document.getElementById('patBody');
-  const pat = (input && input.value || '').trim();
-  if(!pat.startsWith('pt-')){
-    if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">令牌必须以 pt- 开头，请粘贴完整的 Personal Access Token。</p>';
+async function doImportRefreshToken(btn){
+  const input = document.getElementById('refreshTokenInput');
+  const body = document.getElementById('refreshTokenBody');
+  const token = (input && input.value || '').trim();
+  if(!token){
+    if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">请先粘贴 refreshToken。</p>';
     return;
   }
-  const realm = (document.getElementById('patRadioIntl') && document.getElementById('patRadioIntl').checked) ? 'intl' : 'cn';
+  const realm = (document.getElementById('rtRadioIntl') && document.getElementById('rtRadioIntl').checked) ? 'intl' : 'cn';
   if(btn){ btn.disabled = true; btn.textContent = '导入中...'; }
-  if(body) body.innerHTML = '<p class="hint">正在交换 jobToken 并拉取账号身份…</p>';
+  if(body) body.innerHTML = '<p class="hint">正在用 refreshToken 换取 access token…</p>';
   try{
-    const r = await postJSON('/accounts/import/pat', {pat: pat, realm: realm});
-    const a = (r.imported || [])[0] || {};
-    if(body) body.innerHTML = '<p class="hint" style="color:#26bb82">✓ 已导入 ' + esc(a.nickname || (a.uid||'').slice(0,8)) + ' 到 ' + (realm === 'cn' ? '国内版' : '国际版') + '</p>';
-    toast('已导入 ' + (a.nickname || (a.uid||'').slice(0,8)) + ' 到 ' + (realm === 'cn' ? '国内版' : '国际版'));
+    const resp = await fetch('/accounts/import/pat', {
+      method: 'POST',
+      headers: authHeaders({'Content-Type': 'application/json'}),
+      body: JSON.stringify({refresh_token: token, refreshToken: token, pat: token, realm: realm})
+    });
+    const text = await resp.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch(e) { data = {raw: text}; }
+    if(!resp.ok){
+      const msg = formatApiError(Object.assign({status: resp.status}, data), 'HTTP ' + resp.status);
+      if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">导入失败: ' + esc(msg) + '</p>';
+      toast('refreshToken 导入失败: ' + msg, 'bad');
+      return;
+    }
+    const list = Array.isArray(data.imported) ? data.imported : [];
+    const count = list.length || (typeof data.imported === 'number' ? data.imported : 0);
+    if(!count){
+      if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">服务端未返回已导入账号，请检查 refreshToken 与区域。</p>';
+      return;
+    }
+    const a = list[0] || {};
+    const name = a.nickname || (a.uid || '').slice(0, 8) || (count + ' 个账号');
+    if(body) body.innerHTML = '<p class="hint" style="color:#26bb82">已导入 ' + esc(name) + ' 到 ' + (realm === 'cn' ? '国内版' : '国际版') + '</p>';
+    toast('已导入 ' + name + ' 到 ' + (realm === 'cn' ? '国内版' : '国际版'));
     if(input) input.value = '';
     await loadAccounts();
     await refresh();
-    setTimeout(closePatImport, 1200);
+    setTimeout(closeRefreshTokenImport, 1200);
   }catch(e){
-    if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">导入失败: ' + esc(e.message) + '</p>';
+    const msg = formatApiError(e, '请求失败');
+    if(body) body.innerHTML = '<p class="hint" style="color:var(--warn)">导入失败: ' + esc(msg) + '</p>';
   }finally{
-    if(btn){ btn.disabled = false; btn.textContent = '导入 PAT'; }
+    if(btn){ btn.disabled = false; btn.textContent = '导入 refreshToken'; }
+  }
+}
+
+// 「领取全部福利」：每日签到/活动（含券类）+ Pro 福利包，一次点完（均幂等）
+async function runGrowthTasks(btn){
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = '领取中...';
+  const logBox = document.getElementById("taskLogBox");
+  if(logBox){
+    logBox.style.display = 'block';
+    logBox.innerHTML = '<div style="color:var(--accent)">[福利] 正在领取全部福利（每日签到 + 限时活动 + Pro 福利包）...</div>';
+  }
+  try{
+    const payload = {};
+    if(CURRENT_GROWTH_UID && CURRENT_GROWTH_UID !== 'all'){
+      payload.uid = CURRENT_GROWTH_UID;
+    }
+    const r = await postJSON("/tasks/run", payload);
+    const logs = (r.logs || []).slice();
+    let proMsg = '';
+    try{
+      const t = await postJSON("/tasks/travel", payload);
+      if(t && t.msg) proMsg = t.msg;
+      logs.push('--- Pro 福利包 ---');
+      (t.logs || []).forEach(l => logs.push(l));
+    }catch(e2){ logs.push('Pro 福利包领取跳过: ' + (e2 && e2.message)); }
+    if(logBox){
+      logBox.innerHTML = logs.map(l => '<div>' + esc(l) + '</div>').join('');
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+    await Promise.all([loadAccounts(), loadGrowthTasks({force:true})]);
+    const sumC = r.credit_added != null ? ('，活动新增 +' + r.credit_added + ' 积分') : '';
+    toast("全部福利领取完成" + sumC + (proMsg ? ('；Pro: ' + proMsg.slice(0, 60)) : '') + "！");
+  }catch(e){
+    if(logBox) logBox.innerHTML += '<div style="color:var(--warn)">执行出错: ' + esc(e.message) + '</div>';
+    toast("任务执行失败: " + e.message, "bad");
+  }finally{
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+async function triggerCatTravel(btn){
+  if(btn){ btn.disabled = true; btn.textContent = '领取中...'; }
+  try{
+    const payload = {};
+    if(CURRENT_GROWTH_UID && CURRENT_GROWTH_UID !== 'all'){
+      payload.uid = CURRENT_GROWTH_UID;
+    }
+    const r = await postJSON("/tasks/travel", payload);
+    toast(r.msg || (r.ok ? "福利包领取完成" : "操作失败"), r.ok ? "ok" : "warn");
+    await Promise.all([loadAccounts(), loadGrowthTasks({force:true})]);
+  }catch(e){
+    toast("福利包领取失败: " + e.message, "bad");
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '领取福利包'; }
   }
 }
 
@@ -8047,13 +8268,25 @@ async function startDashboard(){
 }
 
 async function saveModelContext(model, label){
+  const realm = window.MODEL_REALM || (typeof getModelCatalogRealm === 'function' ? getModelCatalogRealm() : '') || window.VIEW_REALM || 'intl';
   try{
-    const r = await postJSON('/settings/model-context', {model: model, label: label});
+    const r = await postJSON('/settings/model-context', {model: model, label: label, realm: realm});
     window.SETTINGS_MODEL_CONTEXT = r.model_context || {};
+    // 后端可能回传规范化后的选中标签；以它为准回写当前行，避免下拉与实际不一致。
+    const selected = (r.selected !== undefined && r.selected !== null)
+      ? r.selected
+      : (label || null);
+    (MODELS_DATA || []).forEach(m => {
+      const key = (m.upstream_key && m.upstream_key !== m.id) ? m.upstream_key : m.id;
+      if(String(key) === String(model) || String(m.id) === String(model)){
+        m.context_window_selected = selected;
+      }
+    });
     renderAvailableModels();
-    toast(label ? ('上下文已设为 ' + label + '（立即生效，新请求起）')
-               : '已恢复官方默认上下文', 'ok');
-  }catch(e){ toast('保存失败: ' + e.message, 'bad'); }
+    toast(label
+      ? ('上下文预算已设为 ' + label + '（本地 UTF-8 保守估算，不截断历史；新请求起生效）')
+      : '已恢复官方默认上下文', 'ok');
+  }catch(e){ toast('保存失败: ' + formatApiError(e, '保存失败'), 'bad'); }
 }
 
 function renderAutoDegrade(cfg){

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.11", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,4 +22,15 @@ jobs:
       - name: Run self tests
         env:
           PYTHONIOENCODING: utf-8
-        run: python _test_trae.py
+        run: |
+          python _test_trae.py
+          python -m unittest test_issue_context test_issue_desktop test_issue_scheduling
+          python test_issue_usage.py
+          python test_issue_http.py
+          python test_issue_solo.py
+          python test_issue_packaging.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Dashboard regression
+        run: node test_issue_dashboard.js

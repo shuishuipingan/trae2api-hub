@@ -778,29 +778,53 @@ def _call_client_refresh(account, client=None):
 # Desktop 凭证扫描（真正解密在 trae_client；这里只做调度与脱敏）
 # ---------------------------------------------------------------------------
 def desktop_storage_paths():
-    """双区 Desktop 凭证文件位置（只读展示，不含内容）。"""
-    appdata = os.environ.get("APPDATA") or os.path.join(
-        os.path.expanduser("~"), "AppData", "Roaming")
-    home = os.path.expanduser("~")
+    """双区 Desktop 凭证位置（跨平台；只读展示，不含内容）。
+
+    统一由 trae_client 解析（Windows %APPDATA% / macOS Application Support /
+    Linux $XDG_CONFIG_HOME；TRAE_APPDATA / TRAE_DESKTOP_DIRS / TRAE_USER_HOME 可覆盖）。
+    trae_client 不可用时返回 []（不猜路径）。
+    """
+    client = _load_client()
+    if client is None:
+        return []
     out = []
-    for realm in ("cn", "intl"):
+    try:
+        candidates = client.desktop_storage_candidates()
+    except Exception:
+        candidates = []
+    try:
+        tokens = client.temp_token_candidates()
+    except Exception:
+        tokens = []
+    for entry in candidates:
+        realm = str(entry.get("realm") or "intl").lower()
+        if realm not in REALMS:
+            realm = "intl"
         cfg = get_realm_config(realm)
+        path = entry.get("path") or ""
+        token_path = next((t.get("path") for t in tokens
+                           if t.get("realm") == realm), "")
         out.append({
             "realm": realm,
             "realmName": cfg["name"],
-            "storage": os.path.join(appdata, cfg["app_dir"], "User",
-                                    "globalStorage", "storage.json"),
+            # 兼容旧键名（storage/key/tempToken）与新的 path/file/kind/exists
+            "storage": path,
+            "path": path,
+            "file": entry.get("file") or "storage.json",
+            "kind": entry.get("kind") or "app",
+            "exists": bool(entry.get("exists")),
             "key": "iCubeAuthInfo://icube.cloudide",
-            "tempToken": os.path.join(home, cfg["home_dir"], "trae-jwt-token"),
+            "tempToken": token_path,
         })
     return out
 
 
-def scan_desktop_accounts(client=None, realms=None):
+def scan_desktop_accounts(client=None, realms=None, path=None, paths=None):
     """调用 trae_client.import_desktop_accounts() 取本机双区凭证。
 
     返回 (rows, error)。rows 为 trae_client 给出的桌面结构 dict 列表；
     本函数不做任何网络请求，也不打印任何令牌。
+    path / paths 给定时**只**读取该路径（显式路径不扩散到其它位置）。
     """
     client = client or _load_client()
     if client is None:
@@ -809,8 +833,13 @@ def scan_desktop_accounts(client=None, realms=None):
     fn = getattr(client, "import_desktop_accounts", None)
     if not callable(fn):
         return [], "trae_client 未提供 import_desktop_accounts()"
+    kwargs = {}
+    if path:
+        kwargs["path"] = path
+    if paths:
+        kwargs["paths"] = list(paths)
     try:
-        rows = fn()
+        rows = fn(**kwargs)
     except Exception as exc:
         return [], "import_desktop_accounts failed: %s: %s" % (type(exc).__name__, exc)
     if isinstance(rows, dict):
@@ -834,13 +863,13 @@ def scan_desktop_accounts(client=None, realms=None):
     return kept, ""
 
 
-def import_desktop_accounts(client=None, realms=None):
+def import_desktop_accounts(client=None, realms=None, path=None, paths=None):
     """兼容别名：返回原始桌面结构行（解密由 trae_client 完成）。"""
-    rows, error = scan_desktop_accounts(client=client, realms=realms)
+    rows, error = scan_desktop_accounts(client=client, realms=realms,
+                                        path=path, paths=paths)
     if error:
         raise AccountError(error)
     return rows
-
 
 # ---------------------------------------------------------------------------
 # Account
@@ -1708,10 +1737,15 @@ class Account(object):
         else:
             data["source"] = raw_source or "desktop"
         account = cls(data, directory=directory)
-        if not account.uid:
-            raise ValueError("desktop row has no userId")
         if not account.token:
             raise ValueError("desktop row has no token")
+        if not account.uid:
+            # CLI 临时 token 文件没有 userId：用 token 摘要派生稳定 uid，
+            # 保证「同一文件重复导入 = 同一账号」，而不是每次新建。
+            account.uid = "tok-" + hashlib.sha256(
+                account.token.encode("utf-8")).hexdigest()[:20]
+            account.extra = dict(account.extra or {})
+            account.extra.setdefault("syntheticUid", True)
         return account
 
 
@@ -1803,9 +1837,9 @@ class AccountPool(object):
         self.ledger_reader = None   # 可注入：reader(uid, model) -> 当日 tokens
         try:
             self.max_inflight = int(max_inflight if max_inflight is not None
-                                    else (os.environ.get("TRAE_MAX_INFLIGHT") or 8))
+                                    else (os.environ.get("TRAE_MAX_INFLIGHT") or 2))
         except (TypeError, ValueError):
-            self.max_inflight = 8
+            self.max_inflight = 2
         if self.max_inflight < 0:
             self.max_inflight = 0
         _ACTIVE_POOL = self
@@ -2442,15 +2476,25 @@ class AccountPool(object):
 
     # -- Desktop 导入（CN + INTL）----------------------------------------
     def import_desktop(self, preview_only=True, realms=None, overwrite=False,
-                       client=None):
+                       client=None, path=None, paths=None):
         """读取本机 Desktop 凭证 -> 规整 -> 脱敏预览 / 真正入库。
 
         preview_only=True（默认）只返回脱敏预览，不写盘 —— 看板必须先展示
         「将导入哪些账号（uid 后 4 位 + realm + 邮箱掩码）」再让用户确认。
+
+        path / paths：**只**处理指定凭证文件（显式路径不扩散到其它位置）。
+        返回 dict（可 JSON）：
+          found / preview / accounts / errors / error / imported / updated
+        **accounts 只包含本次扫描/导入涉及的行**（不是全池视图）；每行是
+        Account.public() 脱敏视图，带 uidHash 供调用方回查账号对象。
         """
-        rows, error = scan_desktop_accounts(client=client, realms=realms)
+        rows, error = scan_desktop_accounts(client=client, realms=realms,
+                                            path=path, paths=paths)
+        # 任何分支都返回完整键集（error 分支也带 import/updated/skipped=0），
+        # 网关按 result.get("imported")+updated 判定变更，缺键会变成隐式 0。
         result = {"found": len(rows), "preview": bool(preview_only),
-                  "accounts": [], "errors": [], "error": error}
+                  "path": path or "", "accounts": [], "errors": [],
+                  "error": error, "imported": 0, "updated": 0, "skipped": 0}
         if error:
             return result
         staged = []
@@ -2483,9 +2527,11 @@ class AccountPool(object):
             else:
                 self.add(account)
                 imported += 1
-        result.update({"imported": imported, "updated": updated})
-        self.log("Desktop 导入完成：新增 %d，更新 %d（%s）"
-                 % (imported, updated, self.dir))
+        skipped = max(0, len(staged) - imported - updated)
+        result.update({"imported": imported, "updated": updated,
+                       "skipped": skipped})
+        self.log("Desktop 导入完成：新增 %d，更新 %d，跳过 %d（%s）"
+                 % (imported, updated, skipped, self.dir))
         return result
 
     # -- 每日限额护栏（token / 模型 token / 临期；credit 类在 Trae 无口径）--
@@ -2795,14 +2841,27 @@ def get_pool():
 
 
 def import_desktop_credential(path=None, realm=None, client=None):
-    """兼容入口：导入本机 Desktop 凭证（path 参数保留但由 trae_client 决定）。"""
-    if _ACTIVE_POOL is None:
-        raise AccountError("账号池未初始化（先构造 AccountPool）")
-    result = _ACTIVE_POOL.import_desktop(preview_only=False,
-                                        realms=[realm] if realm else None,
-                                        overwrite=True, client=client)
-    if result.get("error"):
-        raise AccountError(result["error"])
+    """导入本机 Desktop 凭证（网关 /accounts/import/desktop 的唯一入口）。
+
+    **统一返回 AccountPool.import_desktop 的 dict**（path 与 all 都是）：
+      found / preview / path / accounts / errors / error / imported / updated / skipped
+    - path 给定：只导入该文件；
+    - path 省略：导入本机全部有效凭证；
+    - accounts 只含本次涉及的账号脱敏视图（带 uidHash），不是全池；
+    - 失败信息放在 result["error"]/result["errors"]，不再抛 Account/list 形态。
+    """
+    pool = _ACTIVE_POOL
+    if pool is None:
+        pool = AccountPool()
+        pool.load()
+    result = pool.import_desktop(preview_only=False,
+                                 realms=[realm] if realm else None,
+                                 overwrite=True, client=client, path=path)
+    if path and not result.get("error") and not result.get("accounts"):
+        result["error"] = "该路径没有可导入的 Trae 凭证：%s" % path
+    # 同步到 errors，让网关的「errors 且 0 变更 -> 400」分支拿到可读原因
+    if result.get("error") and not result.get("errors"):
+        result["errors"] = [result["error"]]
     return result
 
 
@@ -2817,10 +2876,155 @@ def add_from_refresh(refresh_token, realm=None, uid=None, proxy=None,
                                  proxy=proxy, overwrite=overwrite, client=client)
 
 
-def scan_desktop_credentials(client=None):
-    """兼容入口：脱敏预览本机双区凭证（不写盘）。"""
-    pool = _ACTIVE_POOL or AccountPool()
-    return pool.import_desktop(preview_only=True, client=client).get("accounts", [])
+def _masked_nickname(profile, uid):
+    """展示用昵称（脱敏）：username > email > 'uid…后4位'。"""
+    profile = profile if isinstance(profile, dict) else {}
+    for key in ("username", "name", "displayName"):
+        value = str(profile.get(key) or "").strip()
+        if value:
+            return mask_name(value)
+    email = str(profile.get("email") or "").strip()
+    if email:
+        return mask_email(email)
+    return ("uid…" + uid_tail(uid)) if uid else ""
+
+
+def _domain_for(host, realm):
+    """账号出口裸域名（api.trae.com.cn / grow-normal.traeapi.us）。"""
+    host = str(host or "").strip()
+    if host:
+        parsed = urllib.parse.urlsplit(host if "://" in host else "http://" + host)
+        if parsed.hostname:
+            return parsed.hostname
+    cfg = get_realm_config(realm)
+    return (urllib.parse.urlsplit(cfg["account"]).hostname
+            or cfg["domain"])
+
+
+def _scan_row(entry, realm):
+    """扫描行骨架（前端 renderDesktopScan 直接消费）。"""
+    cfg = get_realm_config(realm)
+    path = str(entry.get("path") or "")
+    kind = str(entry.get("kind") or "app")
+    return {
+        "kind": kind,                     # app=桌面 App / cli=临时 token
+        "path": path,
+        "file": entry.get("file") or os.path.basename(path),
+        "realm": realm,
+        "realmName": cfg["name"],
+        "domain": _domain_for("", realm),
+        "valid": False,
+        "readable": False,
+        "uid": "",                        # 脱敏（与账号列表同一套掩码）
+        "uidTail": "",
+        "uidHash": "",
+        "nickname": "",                   # 脱敏
+        "email": "",
+        "hasRefreshToken": False,
+        "expiresAt": 0,
+        "expiresIn": "",
+        "error": "",
+        "key": ("iCubeAuthInfo://icube.cloudide" if kind == "app" else ""),
+        "accountsInFile": 0,
+    }
+
+
+def scan_desktop_credentials(client=None, realms=None, path=None, paths=None):
+    """扫描本机 Desktop / CLI 凭证（只读、不写盘、不联网）。
+
+    返回前端字段行：kind / path / file / realm / realmName / domain / valid /
+    readable / uid(掩码) / uidTail / uidHash / nickname(掩码) / email(掩码) /
+    hasRefreshToken / expiresAt / expiresIn / error / key / accountsInFile。
+
+    - 候选位置即使不存在也会返回一行（valid=False，error 以 not found 开头），
+      看板据此显示「未检测到登录的位置」。
+    - path / paths 给定时只扫描该路径。
+    """
+    client = client or _load_client()
+    if client is None:
+        return []
+    wanted = {str(r).lower() for r in (realms or ()) if r} or None
+    if path or paths:
+        entries = []
+        maker = getattr(client, "_entry_for_path", None)
+        for item in ([path] if path else []) + list(paths or []):
+            if not item:
+                continue
+            if callable(maker):
+                entries.append(maker(item))
+            else:                      # 旧版 client：本地兜底（文件/目录都接受）
+                target = os.path.abspath(os.path.expanduser(str(item)))
+                if os.path.isdir(target):
+                    target = os.path.join(target, "User", "globalStorage",
+                                          "storage.json")
+                entries.append({
+                    "path": target,
+                    "realm": detect_realm(target),
+                    "kind": ("cli" if os.path.basename(target) == "trae-jwt-token"
+                             else "app"),
+                    "file": os.path.basename(target),
+                    "exists": os.path.isfile(target),
+                })
+    else:
+        try:
+            entries = list(client.desktop_storage_candidates())
+        except Exception:
+            entries = []
+        try:
+            entries += [e for e in client.temp_token_candidates()
+                        if e.get("exists")]
+        except Exception:
+            pass
+    rows = []
+    for entry in entries:
+        realm = str(entry.get("realm") or "").lower()
+        if realm not in REALMS:
+            realm = detect_realm(entry.get("path") or "")
+        if wanted and realm not in wanted:
+            continue
+        row = _scan_row(entry, realm)
+        if not entry.get("exists"):
+            row["error"] = "not found（未登录或未安装该版本客户端）"
+            rows.append(row)
+            continue
+        try:
+            found = client.import_desktop_accounts(path=entry.get("path"))
+        except Exception as exc:
+            row["readable"] = False
+            row["error"] = "%s: %s" % (type(exc).__name__, exc)
+            rows.append(row)
+            continue
+        row["readable"] = True
+        row["accountsInFile"] = len(found or [])
+        if not found:
+            row["error"] = "该文件没有 iCubeAuthInfo://icube.cloudide 凭证"
+            rows.append(row)
+            continue
+        first = found[0]
+        profile = first.get("account") if isinstance(first.get("account"),
+                                                     dict) else {}
+        uid = str(first.get("uid") or first.get("userId") or "")
+        expires_at = normalize_epoch(first.get("expiredAt")
+                                     or first.get("expired_at"))
+        row.update({
+            "valid": True,
+            "uid": mask_uid(uid),
+            "uidTail": uid_tail(uid),
+            "uidHash": uid_digest(uid) if uid else "",
+            "nickname": _masked_nickname(profile, uid),
+            "email": mask_email(profile.get("email")),
+            "hasRefreshToken": bool(first.get("refreshToken")
+                                    or first.get("refresh_token")),
+            "expiresAt": expires_at,
+            "expiresIn": human_delta(expires_at - _now()) if expires_at else "",
+            "domain": _domain_for(first.get("host"), realm),
+            "error": "",
+        })
+        if not uid:
+            # CLI 临时 token 没有 userId：给一个可读标签（不是 PII）
+            row["nickname"] = "临时 token（无 uid）"
+        rows.append(row)
+    return rows
 
 
 # ---------------------------------------------------------------------------

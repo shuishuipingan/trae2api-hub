@@ -9,6 +9,16 @@ _shots/
 docs/
 tests/
 
+# CI 配置 / 开发工具 / 临时目录（运行时不需要）
+# tools/ 里是 IDA 草稿、本地抓包与 agent 脚本，且常含未跟踪的本机产物
+.github/
+tools/
+.tmp/
+_tmp*/
+.tmp_issue*
+.venv/
+venv/
+
 # Python 缓存
 __pycache__/
 *.pyc

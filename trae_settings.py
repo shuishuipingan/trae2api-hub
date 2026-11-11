@@ -1,4 +1,5 @@
-"""Runtime settings for the Trae gateway: panel password and API keys.
+"""Runtime settings for the Trae gateway: panel password, API keys,
+per-key model gates, usage limits, auto-degrade and per-model context windows.
 
 Everything lives in `accounts/settings.json` so a change made from the web
 panel survives a restart without editing the launcher .bat files. The panel
@@ -22,7 +23,12 @@ DEFAULT_PANEL_PASSWORD = "admin"
 PBKDF2_ROUNDS = 120_000
 SESSION_TTL = 7 * 24 * 3600
 
-_lock = threading.RLock()
+_lock = threading.RLock()          # 读-改-写 + 落盘串行化（可重入：setter 内调 save）
+
+#: Windows 上 os.replace 撞到"文件被占用"时的重试次数与退避（秒）。
+#: 纯重试、无超时、无后台线程：落盘始终在调用线程内同步完成。
+SETTINGS_WRITE_RETRIES = 3
+SETTINGS_WRITE_BACKOFF = 0.02
 
 
 def settings_path(accounts_dir):
@@ -50,18 +56,46 @@ def load(accounts_dir):
     return {}
 
 
+def _atomic_write(path, payload):
+    """唯一临时名 + (有界) 重试的原子替换，**同步完成**。
+
+    相比固定 settings.json.tmp 只改一处：临时文件带 pid/线程号，两个进程
+    （网关 + 调度子进程 / 重启重叠）同时写不会互踩同一份 .tmp；失败自清理。
+    重试只针对 Windows 的"目标被占用"（PermissionError），几次退避后如实抛，
+    不引入超时、不启后台线程——落盘永远在调用线程里做完。
+    """
+    tmp = path.with_name("%s.%d.%d.tmp" % (path.name, os.getpid(),
+                                           threading.get_ident()))
+    try:
+        tmp.write_text(payload, encoding="utf-8")
+        for attempt in range(max(1, SETTINGS_WRITE_RETRIES)):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt + 1 >= SETTINGS_WRITE_RETRIES:
+                    raise
+                time.sleep(SETTINGS_WRITE_BACKOFF * (attempt + 1))
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
 def save(accounts_dir, data):
-    """Atomic write so a crash cannot leave a half-written settings file."""
+    """Atomic write so a crash cannot leave a half-written settings file.
+
+    同步写：调用线程持 _lock（RLock，setter 内重入合法）直到落盘结束，
+    返回时文件已经是新内容——不存在"返回失败但后台还在写"的时间窗。
+    """
     with _lock:
         base = Path(accounts_dir).resolve()
         base.mkdir(parents=True, exist_ok=True)
         path = base / "settings.json"
-        tmp = base / "settings.json.tmp"
-        if not (path.is_relative_to(base) and tmp.is_relative_to(base)):
+        if not path.is_relative_to(base):
             raise ValueError("path escapes base directory")
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
-                       encoding="utf-8")
-        os.replace(tmp, path)
+        _atomic_write(path, json.dumps(data, ensure_ascii=False, indent=2))
         return str(path)
 
 
@@ -675,3 +709,396 @@ def set_limit(accounts_dir, key, scope, value):
         data[LIMITS_KEY] = limits
         save(accounts_dir, data)
     return entry
+
+# --------------------------------------------------------- model context
+# issue #106：模型上下文窗口覆盖（面板下拉 -> settings.json -> 网关热路径）。
+#
+# 存什么：只存**官方口径的标签**（"200K" / "1M" / "981504"），不存换算后的
+# 二进制值。理由：
+#   1. 面板回显要拿它跟 /v1/models 的档位字符串直接比较，存标签才能选中；
+#   2. 人手改 settings.json 时一眼看得懂；
+#   3. 解析只有一条路径（parse_context_tokens），不会出现 "200K" 与 "204800"
+#      两套值并存。
+#
+# 校验规则（validate_model_context / set_model_context）：
+#   1. 空串 / "default" / "默认" ...  -> 清除该模型的覆盖（回到官方默认）；
+#   2. 官方档位（200K / 1M，大小写不敏感）或纯数字  -> 统一换算成 token 数；
+#   3. token 数必须 > 0，且不得超过**官方最大窗口**；
+#   4. 拿不到官方窗口信息（该模型 context_window_max 为空）-> 以官方默认窗口
+#      为上限（≤ 默认一定安全），超出即拒绝：没有上限就无从校验，硬写进去
+#      只是把上游的 4001 推给用户。
+#
+# 读路径永不抛（fail-open）：model_context() / model_context_tokens() 遇到脏
+# 数据当"没有覆盖"处理；写路径会抛 ValueError（校验失败）或 OSError
+# （settings.json 解析不了，拒绝覆盖——与 panel_session_secret 同一理由：
+#  一次瞬时读错不能把 api_keys / 密码哈希整份抹掉）。
+
+MODEL_CONTEXT_KEY = "model_context"
+MODEL_CONTEXT_MODEL_MAX = 128          # 模型名长度上限（防脏键撑爆文件）
+_CONTEXT_UNITS = {"": 1, "k": 1000, "m": 1000000, "g": 1000000000}
+_CONTEXT_NUM_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([kmg]?)\s*$", re.IGNORECASE)
+_CONTEXT_CLEAR_WORDS = frozenset((
+    "", "default", "auto", "none", "null", "off", "reset",
+    "官方默认", "默认", "恢复默认", "清除",
+))
+
+
+def context_is_clear(label):
+    """True = 这个值表示"不覆盖，回到官方默认"。"""
+    if label is None:
+        return True
+    if isinstance(label, bool):
+        return False
+    if isinstance(label, (int, float)):
+        return False
+    try:
+        return str(label).strip().lower() in _CONTEXT_CLEAR_WORDS
+    except Exception:
+        return True
+
+
+def parse_context_tokens(label):
+    """标签 -> token 数；清除词返回 None；无法解析抛 ValueError。"""
+    if context_is_clear(label):
+        return None
+    if isinstance(label, bool):
+        raise ValueError("invalid model context: %r" % (label,))
+    if isinstance(label, (int, float)):
+        tokens = int(label)
+        if tokens <= 0:
+            raise ValueError("model context must be positive: %r" % (label,))
+        return tokens
+    match = _CONTEXT_NUM_RE.match(str(label))
+    if not match:
+        raise ValueError("invalid model context: %r" % (label,))
+    number = float(match.group(1))
+    unit = (match.group(2) or "").lower()
+    tokens = int(round(number * _CONTEXT_UNITS.get(unit, 1)))
+    if tokens <= 0:
+        raise ValueError("model context must be positive: %r" % (label,))
+    return tokens
+
+
+def format_context_label(tokens):
+    """token 数 -> 官方风格标签：1000000 -> 1M，200000 -> 200K，981504 原样。"""
+    try:
+        value = int(tokens)
+    except (TypeError, ValueError):
+        return ""
+    if value <= 0:
+        return ""
+    if value % 1000000 == 0:
+        return "%dM" % (value // 1000000)
+    if value % 1000 == 0:
+        return "%dK" % (value // 1000)
+    return str(value)
+
+
+def _meta_int(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value) if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        number = int(value.strip())
+        return number if number > 0 else None
+    return None
+
+
+def _meta_token_list(value):
+    if isinstance(value, list):
+        out = []
+        for item in value:
+            number = _meta_int(item)
+            if number:
+                out.append(number)
+        return out
+    number = _meta_int(value)
+    return [number] if number else []
+
+
+def official_context_default(meta):
+    """官方**默认**上下文窗口（token）：快照条目与 /v1/models 条目都认。"""
+    meta = meta if isinstance(meta, dict) else {}
+    for key in ("context_window_default", "context_window"):
+        number = _meta_int(meta.get(key))
+        if number:
+            return number
+    size = meta.get("context_window_size")
+    if isinstance(size, dict):
+        number = _meta_int(size.get("default"))
+        if number:
+            return number
+    tokens = meta.get("context_window_tokens")
+    if isinstance(tokens, dict):
+        number = _meta_int(tokens.get("dev"))
+        if number:
+            return number
+    return None
+
+
+def official_context_max(meta):
+    """官方**最大**上下文窗口（token）；没有就返回 None（不猜）。"""
+    meta = meta if isinstance(meta, dict) else {}
+    number = _meta_int(meta.get("context_window_max"))
+    if number:
+        return number
+    size = meta.get("context_window_size")
+    if isinstance(size, dict):
+        values = _meta_token_list(size.get("max"))
+        if values:
+            return max(values)
+    tokens = meta.get("context_window_tokens")
+    if isinstance(tokens, dict):
+        number = _meta_int(tokens.get("max"))
+        if number:
+            return number
+    values = _meta_token_list(meta.get("context_windows"))
+    if values:
+        return max(values)
+    return _meta_int(meta.get("context_length"))
+
+
+def context_upper_bound(meta):
+    """可写上限：官方最大窗口优先，缺失时退到官方默认窗口（≤ 默认恒安全）。"""
+    return official_context_max(meta) or official_context_default(meta)
+
+
+def official_context_tiers(meta):
+    """官方窗口档位 [(label, tokens), ...]，由小到大去重。
+
+    数据只来自官方字段（默认窗口 / 最大窗口 / 其余 context_window_size.max
+    列表项），标签是**展示格式**不是新数据：format_context_label 可逆。
+    """
+    seen = []
+    meta = meta if isinstance(meta, dict) else {}
+    for number in (official_context_default(meta), official_context_max(meta)):
+        if number and number not in seen:
+            seen.append(number)
+    size = meta.get("context_window_size")
+    if isinstance(size, dict):
+        for number in _meta_token_list(size.get("max")):
+            if number not in seen:
+                seen.append(number)
+    for number in _meta_token_list(meta.get("context_windows")):
+        if number not in seen:
+            seen.append(number)
+    return [(format_context_label(n), n) for n in sorted(seen)]
+
+
+def validate_model_context(label, meta=None, max_tokens=None):
+    """校验一个覆盖值，返回判定 dict（永不抛）。
+
+    key: ok / action("set"|"clear") / value(存盘值) / tokens / label /
+         reason(unparseable|not_positive|exceeds_window|unknown_window|"") /
+         message(给人看的一句话) / max / tiers
+    """
+    upper = _meta_int(max_tokens) or context_upper_bound(meta)
+    tiers = official_context_tiers(meta)
+    out = {
+        "ok": True, "action": "set", "value": None, "tokens": None,
+        "label": "", "reason": "", "message": "", "max": upper,
+        "tiers": [{"label": l, "tokens": t} for l, t in tiers],
+    }
+    if context_is_clear(label):
+        out["action"] = "clear"
+        return out
+    try:
+        tokens = parse_context_tokens(label)
+    except ValueError as exc:
+        out.update(ok=False, reason="unparseable", message=str(exc))
+        return out
+    out["tokens"] = tokens
+    out["label"] = format_context_label(tokens)
+    if tokens <= 0:
+        out.update(ok=False, reason="not_positive",
+                   message="上下文必须是正数")
+        return out
+    if not upper:
+        out.update(ok=False, reason="unknown_window",
+                   message="该模型没有官方窗口上限信息，无法校验；先在目录快照补全")
+        return out
+    if tokens > upper:
+        out.update(ok=False, reason="exceeds_window",
+                   message="超出官方最大窗口 %s（%d tokens）"
+                           % (format_context_label(upper), upper))
+        return out
+    out["value"] = out["label"]
+    if any(t == tokens for _l, t in tiers):
+        out["exact_tier"] = True
+    return out
+
+
+def _clean_model_context(raw):
+    """把存储 map 清洗成 {模型: 标签}（脏值/清除词直接丢弃）。"""
+    out = {}
+    if not isinstance(raw, dict):
+        return out
+    for key, value in raw.items():
+        name = str(key or "").strip()
+        if not name or len(name) > MODEL_CONTEXT_MODEL_MAX:
+            continue
+        if context_is_clear(value):
+            continue
+        try:
+            tokens = parse_context_tokens(value)
+        except ValueError:
+            continue
+        out[name] = format_context_label(tokens)
+    return out
+
+
+def model_context(accounts_dir):
+    """全量覆盖 map：{模型: "1M"}（脏数据已清洗；永不抛）。"""
+    with _lock:
+        raw = load(accounts_dir).get(MODEL_CONTEXT_KEY)
+    return _clean_model_context(raw)
+
+
+def _resolve_model_name(model, realm=None):
+    """模型名归一到上游真名（目录模块不可用时原样返回）。"""
+    name = str(model or "").strip()
+    if not name:
+        return ""
+    try:
+        import trae_catalog
+        resolved = trae_catalog.resolve_upstream_key(name, realm=realm)
+    except Exception:
+        return name
+    return str(resolved or name)
+
+
+def _context_key(mapping, model, realm=None):
+    """在已存 map 里找到该模型对应的键：精确 -> 忽略大小写 -> 别名/真名归一。"""
+    name = str(model or "").strip()
+    if not name or not mapping:
+        return ""
+    if name in mapping:
+        return name
+    low = name.lower()
+    for key in mapping:
+        if key.lower() == low:
+            return key
+    target = _resolve_model_name(name, realm)
+    if target and target != name:
+        for key in mapping:
+            if key == target or key.lower() == target.lower():
+                return key
+    if target:
+        for key in mapping:
+            if _resolve_model_name(key, realm) == target:
+                return key
+    return ""
+
+
+def get_model_context(accounts_dir, model, realm=None):
+    """单项覆盖值（标签）；没有覆盖返回 None。"""
+    mapping = model_context(accounts_dir)
+    key = _context_key(mapping, model, realm)
+    return mapping.get(key) if key else None
+
+
+def model_context_tokens(accounts_dir, model, meta=None, realm=None, clamp=True):
+    """热路径用：该模型生效的上下文 token 数；没有覆盖返回 None。
+
+    clamp=True 时把手工改大的值夹到官方上限（防手改 settings.json 后把
+    超窗请求发给上游）；meta 缺失时无法判定上限，原样返回。
+    """
+    label = get_model_context(accounts_dir, model, realm)
+    if label is None:
+        return None
+    try:
+        tokens = parse_context_tokens(label)
+    except ValueError:
+        return None
+    if tokens is None:
+        return None
+    if clamp:
+        upper = context_upper_bound(meta)
+        if upper and tokens > upper:
+            return upper
+    return tokens
+
+
+def set_model_context(accounts_dir, model, label, meta=None, realm=None,
+                      max_tokens=None):
+    """写入/清除一个模型的上下文覆盖，返回保存后的完整 map。
+
+    label 为空/默认词 -> 清除该项（回到官方默认）。
+    校验失败抛 ValueError（message 可直接回给面板）；
+    settings.json 解析不了时抛 OSError（不覆盖，避免抹掉其它设置）。
+    """
+    name = str(model or "").strip()
+    if not name:
+        raise ValueError("model is required")
+    if len(name) > MODEL_CONTEXT_MODEL_MAX:
+        raise ValueError("model name too long")
+    verdict = validate_model_context(label, meta=meta, max_tokens=max_tokens)
+    if not verdict["ok"]:
+        raise ValueError(verdict["message"] or verdict["reason"])
+    with _lock:
+        if not _settings_is_rewritable(accounts_dir):
+            raise OSError("settings.json unreadable; refusing to overwrite it")
+        data = load(accounts_dir)
+        ctx = _clean_model_context(data.get(MODEL_CONTEXT_KEY))
+        key = _context_key(ctx, name, realm) or name
+        if verdict["action"] == "clear":
+            ctx.pop(key, None)
+        else:
+            ctx[key] = verdict["value"]
+        if ctx:
+            data[MODEL_CONTEXT_KEY] = ctx
+        else:
+            data.pop(MODEL_CONTEXT_KEY, None)   # 空 map 不占文件
+        save(accounts_dir, data)
+    return ctx
+
+
+def clear_model_context(accounts_dir, model=None):
+    """清除单个模型（model 为空 = 清除全部），返回保存后的完整 map。"""
+    name = str(model or "").strip()
+    with _lock:
+        if not _settings_is_rewritable(accounts_dir):
+            raise OSError("settings.json unreadable; refusing to overwrite it")
+        data = load(accounts_dir)
+        ctx = _clean_model_context(data.get(MODEL_CONTEXT_KEY))
+        if not name:
+            ctx = {}
+        else:
+            key = _context_key(ctx, name)
+            if key:
+                ctx.pop(key, None)
+        if ctx:
+            data[MODEL_CONTEXT_KEY] = ctx
+        else:
+            data.pop(MODEL_CONTEXT_KEY, None)   # 空 map 不占文件
+        save(accounts_dir, data)
+    return ctx
+
+
+def model_context_view(accounts_dir, meta_by_model=None, realm=None):
+    """给面板/诊断看的口径：{模型: {label, tokens, max, tiers, valid}}。
+
+    meta_by_model: 可选的 {模型: 官方 meta}，用来标出上限与可用档位；
+    没有 meta 时 max/tiers 为 None/[]（不编造）。
+    """
+    mapping = model_context(accounts_dir)
+    meta_by_model = meta_by_model if isinstance(meta_by_model, dict) else {}
+    out = {}
+    for key, label in mapping.items():
+        meta = meta_by_model.get(key) or meta_by_model.get(key.lower()) or {}
+        tokens = None
+        try:
+            tokens = parse_context_tokens(label)
+        except ValueError:
+            tokens = None
+        upper = context_upper_bound(meta) if meta else None
+        out[key] = {
+            "label": label,
+            "tokens": tokens,
+            "max": upper,
+            "tiers": [{"label": l, "tokens": t}
+                      for l, t in official_context_tiers(meta)],
+            "valid": bool(tokens) and (upper is None or tokens <= upper),
+        }
+    return out

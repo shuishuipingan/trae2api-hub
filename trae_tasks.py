@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
 """trae_tasks.py —— Trae 维护任务引擎（Token 保活 / 权益用量 / 模型目录 / 到期提醒）
 
-Trae 没有 Qoder 那种「每日签到领积分」的任务体系，原骨架里的签到/活动领取逻辑
-在本仓库已不适用。本模块改为**官方真实能力**的运维任务引擎，只做四件事：
+Trae 没有 Qoder 那种「每日签到领积分」的任务体系；当前维护任务为：
 
-  1. token_keepalive  access token 到期前 24 小时用 ExchangeToken 轮换刷新
-  2. usage_refresh    权益 / 用量快照（优先 trae_client.fetch_usage /
-                      fetch_entitlement；模块未就绪时回退 trae_accounts 账本）
-  3. catalog_refresh  模型目录刷新（优先 trae_client.fetch_model_list，并核对
+  1. daily_checkin    国内版每日签到（国际版如实跳过，不伪造成功）
+  2. token_keepalive  access token 到期前 24 小时用 ExchangeToken 轮换刷新
+  3. usage_refresh    权益 / 用量快照（优先 trae_client.fetch_usage /
+                      fetch_entitlement；模块未就绪时回退账号层快照）
+  4. catalog_refresh  模型目录刷新（优先 trae_client.fetch_model_list，并核对
                       trae_catalog 的双区快照）
-  4. expiry_reminder  access / refresh token、权益包、会话状态的到期提醒
+  5. model_probe      模型自动探测
+  6. expiry_reminder  access / refresh token、权益包、会话状态的到期提醒
+
+issue #6：调度器后台签到默认 45s + 0~75s 抖动；手动 run_batch_checkin
+默认沿用历史短间隔（1.5s / 显式 gap），避免 /tasks/run HTTP 超时；手动要 45~120s
+错峰时传 interval=45, jitter=75 或设置 TRAE_MANUAL_CHECKIN_*。保活/权益刷新
+沿用 0.2s 节流。sleep/rng 均可注入，测试不会真等数分钟。
 
 所有任务结果原子落盘到 <usage>/tasks.json（**不写任何 token 值**），供看板、
 调度器与 _diag_campaign.py 读取；手动触发与历史查询都由 run_task / run_all_tasks
@@ -18,7 +24,8 @@ Trae 没有 Qoder 那种「每日签到领积分」的任务体系，原骨架�
 兼容层（网关现有路由仍在调用，签名与返回键保持不变）：
   fetch_tasks_view(pool, realm=None, uid=None)
   fetch_task_view(account)
-  run_batch_checkin(targets, gap=1.0, inter_gap=1.5)
+  run_batch_checkin(targets, gap=None, inter_gap=None,
+                    pacing=None, interval=None, jitter=None)
   run_batch_pro_claim(targets, gap=1.0, inter_gap=1.5)
   run_checkin(account, gap=1.0, only_daily=False, claim_gap=None)
   run_keepalive(pool, force=False, threshold_seconds=24*3600)
@@ -27,6 +34,7 @@ Trae 没有 Qoder 那种「每日签到领积分」的任务体系，原骨架�
 import inspect
 import json
 import os
+import random
 import re
 import sys
 import threading
@@ -43,6 +51,23 @@ except Exception:                       # pragma: no cover - 防御半成品仓�
 # 常量与落盘位置
 # ---------------------------------------------------------------------------
 DEFAULT_KEEPALIVE_THRESHOLD = 24 * 3600      # 到期前 24 小时保活（需求口径）
+# issue #6：批量签到默认 45~120 秒错峰（5 个号不再 5 秒内连打上游）。
+# 真实运行时走 sleep；测试通过 make_pacing(sleep=..., rng=...) 注入，不会真等。
+DEFAULT_CHECKIN_INTERVAL_SECONDS = 45.0
+DEFAULT_CHECKIN_JITTER_SECONDS = 75.0
+# 手动 /tasks/run 不能因保守错峰把 HTTP 拖到 3~8 分钟：默认沿用历史的短间隔，
+# 想对手动批量也做 45~120s 错峰时用 interval/jitter 或 TRAE_MANUAL_CHECKIN_*。
+DEFAULT_MANUAL_CHECKIN_INTERVAL_SECONDS = 1.5
+DEFAULT_MANUAL_CHECKIN_JITTER_SECONDS = 0.0
+DEFAULT_TASK_INTERVAL_SECONDS = 0.2          # 保活/权益刷新的原有节流
+DEFAULT_TASK_JITTER_SECONDS = 0.0
+ENV_CHECKIN_INTERVAL = "TRAE_CHECKIN_INTERVAL_SECONDS"
+ENV_CHECKIN_JITTER = "TRAE_CHECKIN_JITTER_SECONDS"
+ENV_MANUAL_CHECKIN_INTERVAL = "TRAE_MANUAL_CHECKIN_INTERVAL_SECONDS"
+ENV_MANUAL_CHECKIN_JITTER = "TRAE_MANUAL_CHECKIN_JITTER_SECONDS"
+ENV_TASK_INTERVAL = "TRAE_TASK_INTERVAL_SECONDS"
+ENV_TASK_JITTER = "TRAE_TASK_JITTER_SECONDS"
+MAX_PACING_SECONDS = 24 * 3600.0
 STATE_VERSION = 2
 TASKS_FILE_NAME = "tasks.json"
 HISTORY_LIMIT = 200
@@ -130,6 +155,179 @@ def _fmt_eta(seconds):
     if seconds >= 3600:
         return "%.1f 小时" % (seconds / 3600)
     return "%d 分钟" % int(seconds / 60)
+
+
+def _env_seconds(name, default):
+    """读取秒级环境变量；非法值回退默认，负数归零，避免启动期抛异常。"""
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return float(default)
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return float(default)
+    return max(0.0, min(MAX_PACING_SECONDS, value))
+
+
+def _optional_env_seconds(name):
+    """返回显式设置的环境变量秒数；未设置/非法返回 None（用于区分默认值）。"""
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, min(MAX_PACING_SECONDS, value))
+
+
+def pacing_defaults(kind="checkin"):
+    """默认节流参数（只含数字，便于写进状态/日志/看板）。"""
+    if kind == "checkin":
+        return {
+            "interval": _env_seconds(ENV_CHECKIN_INTERVAL,
+                                     DEFAULT_CHECKIN_INTERVAL_SECONDS),
+            "jitter": _env_seconds(ENV_CHECKIN_JITTER,
+                                   DEFAULT_CHECKIN_JITTER_SECONDS),
+        }
+    return {
+        "interval": _env_seconds(ENV_TASK_INTERVAL,
+                                 DEFAULT_TASK_INTERVAL_SECONDS),
+        "jitter": _env_seconds(ENV_TASK_JITTER,
+                               DEFAULT_TASK_JITTER_SECONDS),
+    }
+
+
+def make_pacing(kind="checkin", interval=None, jitter=None, sleep=None,
+                rng=None):
+    """构造节流配置。
+
+    kind="checkin" 默认 45 秒 + 0~75 秒抖动（45~120s），用于签到；
+    kind="task"    默认 0.2 秒 + 0 抖动，保持既有保活/权益刷新节奏。
+    sleep/rng 可注入：测试传假函数即可，不会真的 sleep 数分钟。
+    """
+    defaults = pacing_defaults(kind)
+
+    def _coerce(value, fallback):
+        if value is None:
+            return fallback
+        try:
+            return max(0.0, min(MAX_PACING_SECONDS, float(value)))
+        except (TypeError, ValueError):
+            return fallback
+
+    return {
+        "kind": kind,
+        "interval": _coerce(interval, defaults["interval"]),
+        "jitter": _coerce(jitter, defaults["jitter"]),
+        "sleep": sleep if callable(sleep) else time.sleep,
+        "rng": rng if rng is not None else random.Random(),
+    }
+
+
+def _ensure_pacing(pacing, kind="checkin"):
+    """确保调用方传入的 pacing 完整；缺字段回退默认，不吞 sleep/rng。"""
+    if isinstance(pacing, dict) and pacing.get("kind"):
+        kind = str(pacing.get("kind"))
+    base = make_pacing(kind)
+    if not isinstance(pacing, dict):
+        return base
+    for key in ("kind", "interval", "jitter", "sleep", "rng", "source"):
+        if key in pacing and pacing[key] is not None:
+            base[key] = pacing[key]
+    if not callable(base.get("sleep")):
+        base["sleep"] = time.sleep
+    return base
+
+
+def pacing_view(pacing):
+    """节流配置的可序列化视图（不含 sleep/rng）。"""
+    pacing = _ensure_pacing(pacing)
+    view = {"kind": pacing.get("kind") or "checkin",
+            "interval": round(float(pacing.get("interval") or 0.0), 3),
+            "jitter": round(float(pacing.get("jitter") or 0.0), 3)}
+    if pacing.get("source"):
+        view["source"] = str(pacing.get("source"))
+    return view
+
+
+def resolve_manual_checkin_pacing(gap=None, inter_gap=None, interval=None,
+                                  jitter=None, pacing=None):
+    """手动批量签到的节流解析（与调度器后台的保守默认分开）。
+
+    优先级：显式 pacing > interval/jitter > TRAE_MANUAL_CHECKIN_* >
+    gap/inter_gap（兼容旧签名）> 历史短间隔 1.5s。这样 proxy 的
+    run_batch_checkin(targets, gap=1.0) 仍是秒级返回；若用户希望手动也按
+    45~120s 错峰，可显式传 interval=45, jitter=75，或设置
+    TRAE_MANUAL_CHECKIN_INTERVAL_SECONDS / TRAE_MANUAL_CHECKIN_JITTER_SECONDS。
+    """
+    if pacing is not None:
+        result = _ensure_pacing(pacing, "checkin")
+        result.setdefault("source", "caller_pacing")
+        return result, result["source"]
+    if interval is not None or jitter is not None:
+        result = make_pacing("checkin", interval=interval, jitter=jitter)
+        result["source"] = "explicit_interval"
+        return result, result["source"]
+    env_interval = _optional_env_seconds(ENV_MANUAL_CHECKIN_INTERVAL)
+    env_jitter = _optional_env_seconds(ENV_MANUAL_CHECKIN_JITTER)
+    if env_interval is not None or env_jitter is not None:
+        defaults = pacing_defaults("checkin")
+        result = make_pacing(
+            "checkin",
+            interval=(env_interval if env_interval is not None
+                      else defaults["interval"]),
+            jitter=(env_jitter if env_jitter is not None
+                    else defaults["jitter"]))
+        result["source"] = "manual_env"
+        return result, result["source"]
+    legacy = inter_gap if inter_gap is not None else gap
+    if legacy is not None:
+        try:
+            value = max(0.0, min(MAX_PACING_SECONDS, float(legacy)))
+        except (TypeError, ValueError):
+            value = 0.0
+        result = make_pacing("checkin", interval=value, jitter=0.0)
+        result["source"] = "legacy_gap"
+        return result, result["source"]
+    result = make_pacing("checkin",
+                         interval=DEFAULT_MANUAL_CHECKIN_INTERVAL_SECONDS,
+                         jitter=DEFAULT_MANUAL_CHECKIN_JITTER_SECONDS)
+    result["source"] = "manual_default"
+    return result, result["source"]
+
+
+def _paced_delay(pacing):
+    try:
+        interval = float(pacing.get("interval") or 0.0)
+        jitter = float(pacing.get("jitter") or 0.0)
+    except (TypeError, ValueError):
+        interval = jitter = 0.0
+    extra = 0.0
+    if jitter > 0:
+        rng = pacing.get("rng")
+        uniform = getattr(rng, "uniform", None)
+        if callable(uniform):
+            extra = float(uniform(0.0, jitter))
+        elif callable(rng):
+            extra = float(rng()) * jitter
+        extra = max(0.0, min(jitter, extra))
+    return max(0.0, interval + extra)
+
+
+def _pace(pacing, index, waits=None):
+    """第 index 次上游调用前的等待；index=0 不等待。
+
+    waits 传入列表时记录实际等待秒数（测试/统计用）。
+    """
+    if index <= 0:
+        return 0.0
+    delay = _paced_delay(pacing)
+    if delay > 0:
+        pacing["sleep"](delay)
+    if waits is not None:
+        waits.append(round(delay, 3))
+    return delay
 
 
 def _scrub(text, limit=400):
@@ -1225,16 +1423,24 @@ def _reminder_counts(alerts):
 # ---------------------------------------------------------------------------
 # 任务 1：Token 保活
 # ---------------------------------------------------------------------------
-def task_daily_checkin(pool=None, accounts=None, trigger="manual", **kwargs):
+def task_daily_checkin(pool=None, accounts=None, trigger="manual",
+                       pacing=None, **kwargs):
     """每日签到（仅 CN 真实可用）。
 
     调用 trae_client.claim_checkin：先查 status，已签到则幂等返回；未签到才
     POST claim，再查一次 status 用 credits 差额计算真实到账。INTL 没有该接口，
     如实记「跳过」而不是伪造成功。
+
+    issue #6：账号之间按 pacing 错峰（默认 45s + 0~75s 抖动）；只对真正发起
+    签到请求的 CN 账号计时，INTL 跳过不占用等待。pacing 的 sleep/rng 可注入。
     """
     started = time.time()
     client = _client_module()
     targets = _iter_accounts(pool=pool, accounts=accounts)
+    pacing = _ensure_pacing(pacing, "checkin")
+    waits = []
+    paced_seconds = 0.0
+    calls_made = 0
     logs = []
     checked = already = failed = skipped = 0
     earned_total = 0
@@ -1253,6 +1459,13 @@ def task_daily_checkin(pool=None, accounts=None, trigger="manual", **kwargs):
             snapshot[uid] = {"ok": False, "skipped": True,
                              "reason": "intl_no_checkin", "earned_credit": 0}
             continue
+        if calls_made:
+            delay = _pace(pacing, calls_made, waits)
+            paced_seconds += delay
+            if delay > 0:
+                logs.append("… 签到节流：等待 %.1f 秒后处理 [%s]"
+                            % (delay, name))
+        calls_made += 1
         try:
             res = client.claim_checkin(account, realm="cn")
         except Exception as exc:                       # noqa: BLE001
@@ -1291,7 +1504,10 @@ def task_daily_checkin(pool=None, accounts=None, trigger="manual", **kwargs):
                % (checked, already, skipped, failed, earned_total))
     stats = {"checked": checked, "already": already, "failed": failed,
              "skipped": skipped, "earned_credit": earned_total,
-             "partial": failed > 0}
+             "partial": failed > 0,
+             "paced_seconds": round(paced_seconds, 3),
+             "waits": waits[-20:],
+             "pacing": pacing_view(pacing)}
     record = _record_run("daily_checkin", ok, started, finished, trigger,
                          summary, stats, logs)
     for line in [summary] + [l for l in logs if l.startswith(("✓", "!", "—"))]:
@@ -1303,7 +1519,9 @@ def task_daily_checkin(pool=None, accounts=None, trigger="manual", **kwargs):
 
 
 def task_token_keepalive(pool=None, accounts=None, trigger="manual",
-                         force=False, threshold_seconds=DEFAULT_KEEPALIVE_THRESHOLD):
+                         force=False,
+                         threshold_seconds=DEFAULT_KEEPALIVE_THRESHOLD,
+                         pacing=None):
     """到期前 threshold_seconds（默认 24h）刷新 access token；force=True 全量。
 
     refresh 是轮换式的（旧 refreshToken 立即失效），account.refresh() 内部会
@@ -1313,6 +1531,9 @@ def task_token_keepalive(pool=None, accounts=None, trigger="manual",
     logs = []
     checked = refreshed = failed = skipped = 0
     refreshed_uids, failed_uids = [], []
+    pacing = _ensure_pacing(pacing, "task")
+    waits = []
+    paced_seconds = 0.0
     for account in _iter_accounts(pool, accounts):
         name = _name_of(account)
         if not _access_token(account):
@@ -1323,6 +1544,8 @@ def task_token_keepalive(pool=None, accounts=None, trigger="manual",
         if not force and remain > float(threshold_seconds):
             skipped += 1
             continue
+        if checked:
+            paced_seconds += _pace(pacing, checked, waits)
         checked += 1
         logs.append("[%s] Token 剩余 %s，执行保活刷新..."
                     % (name, _fmt_eta(remain)))
@@ -1353,7 +1576,6 @@ def task_token_keepalive(pool=None, accounts=None, trigger="manual",
                         % (name, _scrub(outcome.get("detail")
                                         or getattr(account, "last_error", "")
                                         or "未知错误", 160)))
-        time.sleep(0.2)
     if not logs:
         logs.append("所有账号 Token 剩余均超过 24 小时，无需刷新")
     summary = ("Token 保活：检查 %d，刷新 %d，跳过 %d，失败 %d"
@@ -1366,7 +1588,10 @@ def task_token_keepalive(pool=None, accounts=None, trigger="manual",
              "skipped": skipped, "partial": failed > 0,
              "threshold_seconds": int(threshold_seconds),
              "force": bool(force), "refreshed_uids": [_uid8(u) for u in refreshed_uids],
-             "failed_uids": [_uid8(u) for u in failed_uids]}
+             "failed_uids": [_uid8(u) for u in failed_uids],
+             "paced_seconds": round(paced_seconds, 3),
+             "waits": waits[-20:],
+             "pacing": pacing_view(pacing)}
     record = _record_run("token_keepalive", task_ok, started, finished,
                          trigger, summary, stats, logs)
     for line in [summary] + [l for l in logs if l.startswith(("✓", "!"))]:
@@ -1385,11 +1610,16 @@ def _uid8(uid):
 # ---------------------------------------------------------------------------
 # 任务 2：权益 / 用量刷新
 # ---------------------------------------------------------------------------
-def task_usage_refresh(pool=None, accounts=None, trigger="manual", realm=None):
+def task_usage_refresh(pool=None, accounts=None, trigger="manual", realm=None,
+                       pacing=None):
     started = time.time()
     logs = []
     snapshots = {}
     refreshed = failed = skipped = 0
+    pacing = _ensure_pacing(pacing, "task")
+    waits = []
+    paced_seconds = 0.0
+    calls_made = 0
     for account in _iter_accounts(pool, accounts, realm):
         name = _name_of(account)
         uid = _uid_of(account) or name
@@ -1397,6 +1627,9 @@ def task_usage_refresh(pool=None, accounts=None, trigger="manual", realm=None):
             skipped += 1
             logs.append("— [%s] 缺少 access token，跳过权益刷新" % name)
             continue
+        if calls_made:
+            paced_seconds += _pace(pacing, calls_made, waits)
+        calls_made += 1
         (usage, entitlement, errors,
          raw_usage, raw_entitlement) = _fetch_account_usage(account)
         # 新 Trae 账号层：只回写**本次真实拉到**的原始快照；回退自账号旧快照
@@ -1442,7 +1675,6 @@ def task_usage_refresh(pool=None, accounts=None, trigger="manual", realm=None):
             failed += 1
             logs.append("! [%s] 权益/用量刷新失败：%s"
                         % (name, "；".join(errors[-3:]) or "上游无响应"))
-        time.sleep(0.2)
 
     def merge(state):
         bucket = state.setdefault("accounts", {})
@@ -1464,7 +1696,10 @@ def task_usage_refresh(pool=None, accounts=None, trigger="manual", realm=None):
                % (refreshed, total, skipped, failed))
     finished = time.time()
     stats = {"accounts": total, "refreshed": refreshed, "failed": failed,
-             "skipped": skipped, "realm": realm or ""}
+             "skipped": skipped, "realm": realm or "",
+             "paced_seconds": round(paced_seconds, 3),
+             "waits": waits[-20:],
+             "pacing": pacing_view(pacing)}
     partial = failed > 0 and refreshed > 0
     stats["partial"] = partial
     record = _record_run("usage_refresh", failed == 0 or refreshed > 0,
@@ -1724,6 +1959,8 @@ def task_expiry_reminder(pool=None, accounts=None, trigger="manual", realm=None)
 # ---------------------------------------------------------------------------
 # 统一执行入口
 # ---------------------------------------------------------------------------
+PACED_TASK_CODES = frozenset(("daily_checkin", "token_keepalive",
+                               "usage_refresh"))
 _TASK_IMPLS = {
     "daily_checkin": task_daily_checkin,
     "model_probe": task_model_probe,
@@ -1734,14 +1971,21 @@ _TASK_IMPLS = {
 }
 
 
-def run_task(code, pool=None, accounts=None, trigger="manual", **kwargs):
-    """执行单个任务（手动/调度统一入口）。未知任务返回 ok=False。"""
+def run_task(code, pool=None, accounts=None, trigger="manual", pacing=None,
+             **kwargs):
+    """执行单个任务（手动/调度统一入口）。未知任务返回 ok=False。
+
+    pacing 只传给支持节流的任务（签到/保活/权益刷新）；未注入时各任务用
+    自己的默认值（签到 45~120s，保活/权益 0.2s），既有调用方无需改动。
+    """
     impl = _TASK_IMPLS.get(code)
     if impl is None:
         return {"ok": False, "task": code,
                 "error": "未知任务：%s（可选：%s）"
                          % (code, "、".join(TASK_ORDER)),
                 "logs": [], "stats": {}, "summary": "未知任务"}
+    if pacing is not None and code in PACED_TASK_CODES:
+        kwargs["pacing"] = pacing
     started = time.time()
     try:
         return impl(pool=pool, accounts=accounts, trigger=trigger, **kwargs)
@@ -1756,14 +2000,23 @@ def run_task(code, pool=None, accounts=None, trigger="manual", **kwargs):
                 "duration_ms": int((finished - started) * 1000)}
 
 
-def run_all_tasks(pool=None, accounts=None, trigger="manual", codes=None):
-    """按固定顺序跑完维护任务（含每日签到），并把本轮摘要写入 last_cycle。"""
+def run_all_tasks(pool=None, accounts=None, trigger="manual", codes=None,
+                  pacing=None):
+    """按固定顺序跑完维护任务（含每日签到），并把本轮摘要写入 last_cycle。
+
+    pacing 只传给 daily_checkin（签到错峰）；保活/权益刷新仍按各自的 0.2s
+    默认值节流，避免整个巡检被 45~120s 拖慢。None 时签到用环境变量/默认值。
+    """
     started = time.time()
     results = {}
     logs = []
     ok = True
     for code in (codes or TASK_ORDER):
-        result = run_task(code, pool=pool, accounts=accounts, trigger=trigger)
+        # 签到节流只用于 daily_checkin；保活/权益刷新沿用各自的 0.2s 默认，
+        # 避免调度巡检被 45~120s 的签到错峰拖慢。
+        task_pacing = pacing if code == "daily_checkin" else None
+        result = run_task(code, pool=pool, accounts=accounts, trigger=trigger,
+                          pacing=task_pacing)
         results[code] = result
         ok = bool(result.get("ok")) and ok
         logs.append("—— %s：%s" % (TASK_NAMES.get(code, code),
@@ -1782,6 +2035,8 @@ def run_all_tasks(pool=None, accounts=None, trigger="manual", codes=None):
                          "summary": res.get("summary") or ""}
                   for code, res in results.items()},
     }
+    if pacing is not None:
+        cycle["pacing"] = pacing_view(pacing)
 
     def mutate(state):
         state["last_cycle"] = cycle
@@ -2246,9 +2501,21 @@ def run_checkin(account, gap=1.0, only_daily=False, claim_gap=None):
     }
 
 
-def run_batch_daily_checkin(targets, gap=1.0, inter_gap=1.5):
-    """批量签到：给 /accounts/checkin 返回 Qoder 看板兼容的 results 数组。"""
+def run_batch_daily_checkin(targets, gap=1.0, inter_gap=1.5, pacing=None,
+                            interval=None, jitter=None):
+    """批量签到：给 /accounts/checkin 返回 Qoder 看板兼容的 results 数组。
+
+    手动入口默认沿用历史的短间隔（inter_gap=1.5s），避免 HTTP 被保守错峰拖死；
+    若要按 issue #6 的 45~120s 错峰，显式传 interval=45, jitter=75、
+    pacing=...，或设置 TRAE_MANUAL_CHECKIN_*。
+    """
     targets = [a for a in (targets or []) if a is not None]
+    pacing, pacing_source = resolve_manual_checkin_pacing(
+        gap=gap, inter_gap=inter_gap, interval=interval, jitter=jitter,
+        pacing=pacing)
+    waits = []
+    paced_seconds = 0.0
+    calls_made = 0
     results = []
     logs = []
     total = 0
@@ -2264,6 +2531,13 @@ def run_batch_daily_checkin(targets, gap=1.0, inter_gap=1.5):
                             "credits": None, "skipped": True})
             logs.append("— [%s] 国际版没有每日签到接口，跳过" % name)
             continue
+        if calls_made:
+            delay = _pace(pacing, calls_made, waits)
+            paced_seconds += delay
+            if delay > 0:
+                logs.append("… 签到节流：等待 %.1f 秒后处理 [%s]"
+                            % (delay, name))
+        calls_made += 1
         try:
             res = _client_module().claim_checkin(account, realm="cn")
         except Exception as exc:                       # noqa: BLE001
@@ -2291,8 +2565,12 @@ def run_batch_daily_checkin(targets, gap=1.0, inter_gap=1.5):
                      else "✓ [%s] 签到成功，到账 +%s（积分 %s）")
                     % ((name, res.get("credits")) if res.get("already")
                        else (name, earned, res.get("credits"))))
+    pacing_info = pacing_view(pacing)
+    pacing_info["source"] = pacing_source
     return {"ok": ok_all, "results": results, "logs": logs,
-            "credit_added": total, "accounts_count": len(targets)}
+            "credit_added": total, "accounts_count": len(targets),
+            "paced_seconds": round(paced_seconds, 3),
+            "waits": waits[-20:], "pacing": pacing_info}
 
 
 def run_keepalive(pool=None, force=False,
@@ -2308,12 +2586,27 @@ def run_keepalive(pool=None, force=False,
             "logs": result.get("logs") or [], "stats": stats}
 
 
-def run_batch_checkin(targets, gap=1.0, inter_gap=1.5):
-    """兼容 /tasks/run：对目标账号执行一轮维护任务（保活/权益/目录/提醒）。"""
+def run_batch_checkin(targets, gap=None, inter_gap=None, pacing=None,
+                      interval=None, jitter=None):
+    """兼容 /tasks/run：对目标账号执行一轮维护任务（含每日签到）。
+
+    手动 HTTP 入口必须秒级可返回：默认沿用历史短间隔（1.5s）或调用方显式
+    gap/inter_gap（proxy 传 gap=1.0 时就是 1s），不会套用调度器后台的
+    45~120s 保守错峰。若用户希望手动也按 issue #6 的 45~120s 执行，可显式传
+    interval=45, jitter=75、pacing=...，或设置 TRAE_MANUAL_CHECKIN_*。
+    """
     targets = [a for a in (targets or []) if a is not None]
+    pacing, pacing_source = resolve_manual_checkin_pacing(
+        gap=gap, inter_gap=inter_gap, interval=interval, jitter=jitter,
+        pacing=pacing)
     started = time.time()
-    result = run_all_tasks(accounts=targets, trigger="manual")
-    logs = ["本次执行维护任务（每日签到 / Token 保活 / 权益用量 / 模型目录 / 到期提醒）"]
+    result = run_all_tasks(accounts=targets, trigger="manual", pacing=pacing)
+    pacing_info = pacing_view(pacing)
+    pacing_info["source"] = pacing_source
+    logs = ["本次执行维护任务（每日签到 / Token 保活 / 权益用量 / 模型目录 / 到期提醒）",
+            "签到节流：间隔 %.1fs + 抖动 0~%.1fs（来源 %s；仅 CN 账号之间生效）"
+            % (pacing_info["interval"], pacing_info["jitter"],
+               pacing_info.get("source") or "-")]
     for code in TASK_ORDER:
         item = (result.get("results") or {}).get(code) or {}
         logs.append("—— %s：%s" % (TASK_NAMES.get(code, code),
@@ -2329,7 +2622,9 @@ def run_batch_checkin(targets, gap=1.0, inter_gap=1.5):
             "tasks": {code: bool(((result.get("results") or {}).get(code) or {})
                                  .get("ok")) for code in TASK_ORDER},
             "results": result.get("results") or {},
-            "duration_ms": result.get("duration_ms") or 0}
+            "duration_ms": result.get("duration_ms") or 0,
+            "paced_seconds": checkin_stats.get("paced_seconds") or 0,
+            "pacing": pacing_info}
 
 
 def run_batch_pro_claim(targets, gap=1.0, inter_gap=1.5):

@@ -84,7 +84,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -531,10 +531,20 @@ _models_cache = {"intl": {"at": 0.0, "data": None}, "cn": {"at": 0.0, "data": No
 
 # Usage accounting: every upstream response carries a usage block, and the
 # proxy also records one JSONL line per request.
-USAGE_DIR = os.environ.get("TRAE_PROXY_USAGE_DIR") \
-    or os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage")
+# 统一绝对路径：stats.configure() 会 abspath，这里不归一的话，相对路径
+# （含 MSYS 的 /tmp/... 形态）会让两模块指向不同字符串、对不上账。
+USAGE_DIR = os.path.abspath(
+    os.environ.get("TRAE_PROXY_USAGE_DIR")
+    or os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage"))
 USAGE_LOG = os.path.join(USAGE_DIR, "usage.jsonl")
 USAGE_SUMMARY = os.path.join(USAGE_DIR, "usage-summary.json")
+# 统计模块与网关必须读同一份文件：显式接线（stats 的默认路径也同源，但
+# configure 让 deployment/测试可以覆盖，不再靠两边各自猜）。
+try:
+    trae_stats.configure(usage_dir=USAGE_DIR, log_path=USAGE_LOG,
+                         summary_path=USAGE_SUMMARY)
+except Exception:
+    pass
 try:
     trae_probe.set_health_path(os.path.join(USAGE_DIR, "model_health.json"))
 except Exception:
@@ -605,28 +615,139 @@ def _empty_stats():
 _usage = _empty_stats()
 
 
-def _extract_usage(usage):
-    """Normalize the upstream usage block into the fields we track."""
-    if not usage:
-        return {}
-    details = usage.get("completion_tokens_details") or {}
-    prompt_details = usage.get("prompt_tokens_details") or {}
-    return {
-        "prompt_tokens": usage.get("prompt_tokens") or 0,
-        "completion_tokens": usage.get("completion_tokens") or 0,
-        "reasoning_tokens": details.get("reasoning_tokens") or 0,
-        "cached_tokens": usage.get("prompt_cache_hit_tokens")
-        or details.get("cached_tokens") or prompt_details.get("cached_tokens") or 0,
-        "total_tokens": usage.get("total_tokens") or 0,
-        # issue #22：上游给的是**复数 credits** —— 旧实现只读单数 credit，
-        # 恒为 None -> 所有 usage 记录成 0（历史数据无法回填，原始值未落盘）。
-        # 保留单数兜底以兼容其它区域/版本的字段差异。
+# ---------------------------------------------------------------------------
+# 流式 usage 记账约定
+#
+# 修复：此前 record_usage() 在 usage=None 时直接 return None —— 流式请求
+# 成功、正文照常返回，但**一行都不记**，面板 requests/tokens 全是空的。
+#
+# 现在的口径（无开关、不增加漏记路径）：
+#   · 每次成功请求**必记一行**；usage 缺失记 usage_missing=True + tokens 0；
+#   · 上游真实给出全 0 usage 时按「已知 0」记录（usage_missing=False）；
+#   · 上游没报 cache 字段时 cached_reported=False，统计层既不算命中也不算未命中；
+#   · 去重**只认显式 request_id**（见下），不猜。
+#
+# request_id 契约：由调用方生成/透传（uuid、上游 request id 等），同一请求重试
+# 或重开上游时必须复用同一个值。**session_key（会话亲和键）绝不能当
+# request_id**：它跨多轮请求共享，会把后续轮次整批误判成重复。
+# ---------------------------------------------------------------------------
+_USAGE_DEDUPE_TTL = 300.0
+
+_USAGE_DEDUPE_LOCK = threading.Lock()
+_USAGE_DEDUPE_SEEN = {}
+
+
+def _usage_dedupe_key(request_id):
+    """去重键：只认**显式 request_id**；没有就返回 None（不去重）。
+
+    绝不使用 model/account/提示指纹/耗时做推测：同一毫秒完全可能发生两次
+    真实请求（同提示并发），按签名去重会把其中一次静默吞掉 —— 那正是
+    「漏记」的另一半。session_key 属于会话级亲和键，多轮共享，禁止传入。
+    """
+    rid = str(request_id or "").strip()
+    if not rid:
+        return None
+    if len(rid) > 200:
+        rid = rid[:200]
+    return ("rid", rid)
+
+
+def _claim_usage_record(key):
+    """True = 本次应当记账；False = 窗口内已记过（重复调用）。"""
+    if not key:
+        return True
+    now = time.time()
+    with _USAGE_DEDUPE_LOCK:
+        if len(_USAGE_DEDUPE_SEEN) > 4096:
+            for old, at in list(_USAGE_DEDUPE_SEEN.items()):
+                if now - at > _USAGE_DEDUPE_TTL:
+                    _USAGE_DEDUPE_SEEN.pop(old, None)
+        seen_at = _USAGE_DEDUPE_SEEN.get(key)
+        if seen_at is not None and now - seen_at < _USAGE_DEDUPE_TTL:
+            return False
+        _USAGE_DEDUPE_SEEN[key] = now
+        if len(_USAGE_DEDUPE_SEEN) > 4096:
+            # 硬上限：淘汰最旧一条（dict 保序）
+            try:
+                _USAGE_DEDUPE_SEEN.pop(next(iter(_USAGE_DEDUPE_SEEN)))
+            except Exception:
+                pass
+        return True
+
+
+def _usage_int(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _usage_present(usage):
+    """上游是否真的**提供了** token 计数（键存在即可，值允许为 0）。
+
+    区分两种「0」：
+      · 没给        -> 未知（usage_missing=True）
+      · 给了且为 0  -> 已知 0（known zero，usage_missing=False，正常记 0）
+    早期实现按 >0 判定，会把上游真实的全 0 usage 误标成缺失。
+    """
+    if not isinstance(usage, dict) or not usage:
+        return False
+    return any(key in usage for key in
+               ("prompt_tokens", "completion_tokens", "total_tokens"))
+
+
+def usage_fields(usage):
+    """归一上游 usage -> (fields, meta)。
+
+    fields 只含**可聚合数值**（与 USAGE_FIELDS 同口径），可直接 row.update()。
+    meta:
+      usage_missing   上游**没有提供** usage（None / 空 dict / 无任何 token 键）。
+                      上游给了但全是 0 属于「已知 0」，不算缺失。
+      cached_reported 上游是否**真的**报了 cache 字段。为 False 时统计层
+                      既不算命中也不能算未命中（避免把「不知道」伪造成 0%）
+      usage_source    upstream | missing（行内标注，仅用于对账/排障）
+    """
+    if not _usage_present(usage):
+        return {}, {"usage_missing": True, "cached_reported": False,
+                    "usage_source": "missing"}
+    details = usage.get("completion_tokens_details")
+    details = details if isinstance(details, dict) else {}
+    prompt_details = usage.get("prompt_tokens_details")
+    prompt_details = prompt_details if isinstance(prompt_details, dict) else {}
+    # cache 字段「有没有报」与「报了多少」必须分开：只取有键且非 None 的。
+    cached, cached_reported = 0, False
+    for source in (usage, details, prompt_details):
+        for key in ("prompt_cache_hit_tokens", "cache_read_input_tokens",
+                    "cached_tokens"):
+            if key in source and source.get(key) is not None:
+                cached = _usage_int(source.get(key))
+                cached_reported = True
+                break
+        if cached_reported:
+            break
+    fields = {
+        "prompt_tokens": _usage_int(usage.get("prompt_tokens")),
+        "completion_tokens": _usage_int(usage.get("completion_tokens")),
+        "reasoning_tokens": _usage_int(details.get("reasoning_tokens")),
+        "cached_tokens": cached,
+        "total_tokens": _usage_int(usage.get("total_tokens")),
+        # issue #22：上游给的是**复数 credits**；保留单数兜底。
         "credit": usage.get("credits") or usage.get("credit") or 0,
         "original_credits": usage.get("original_credits") or 0,
-        # billable 只记录不聚合（布尔求和无意义）：进 JSONL 行，不进
-        # USAGE_FIELDS 的累加与 by_model。
+        # billable 只记录不聚合（布尔求和无意义）。
         "billable": bool(usage.get("billable")),
     }
+    if not fields["total_tokens"]:
+        fields["total_tokens"] = (fields["prompt_tokens"]
+                                  + fields["completion_tokens"])
+    return fields, {"usage_missing": False,
+                    "cached_reported": cached_reported,
+                    "usage_source": "upstream"}
+
+
+def _extract_usage(usage):
+    """兼容旧调用：只要 fields（不再决定「记不记账」）。"""
+    return usage_fields(usage)[0]
 
 
 def realm_scope(value):
@@ -649,9 +770,9 @@ def row_matches_realm(row, realm):
         return r == realm
     acct_uid = row.get("account")
     if acct_uid and POOL:
-        acc = POOL.get(acct_uid)
-        if acc:
-            return acc.realm == realm
+        acc = pool_account(POOL, acct_uid)
+        if acc is not None:
+            return getattr(acc, "realm", None) == realm
     model = row.get("model")
     if model:
         return detect_model_realm(model) == realm
@@ -686,9 +807,41 @@ def record_quota(account, payload):
         pass
 
 
+def pool_account(pool, uid):
+    """按 uid 找账号：`get` 是**可选**能力（测试桩可能只有 pick/accounts）。
+
+    顺序：pool.get(uid) → 遍历 pool.accounts 比对 uid。任何异常都吞掉并返回
+    None —— 查询失败绝不能中断记账（这是接手时踩过的坑：baseline 的 SOLO
+    桩池没有 get，整条 record_usage 直接 AttributeError）。
+    """
+    if not pool or not uid:
+        return None
+    getter = getattr(pool, "get", None)
+    if callable(getter):
+        try:
+            acc = getter(uid)
+            if acc is not None:
+                return acc
+        except Exception:
+            pass
+    target = str(uid)
+    try:
+        accounts = getattr(pool, "accounts", None) or ()
+    except Exception:
+        accounts = ()
+    for acc in accounts:
+        try:
+            if str(getattr(acc, "uid", "") or "") == target:
+                return acc
+        except Exception:
+            continue
+    return None
+
+
 def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
                  gen_ms=None, fp=None, account=None, effort=None,
-                 effort_requested=None, key_id=None, realm_reason=None):
+                 effort_requested=None, key_id=None, realm_reason=None,
+                 request_id=None):
     """Accumulate stats, append a JSONL row, and persist the summary.
 
     P1-3（推理档位审计 + key 归属）：后三个参数都是**可选**的，旧调用路径不传
@@ -696,10 +849,24 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
       effort            实际下发给上游的档位（None = 本次没有下发该参数）
       effort_requested  客户端请求的原始档位（归一化之前）
       key_id            API key 的**标识**（panel id / legacy / launcher），不涉明文
+      request_id        本次请求的唯一 id（可选）：给了就按它去重，避免同一请求
+                        在重试/重开/双路径下被记账两次
     请求档位与实际档位同时落盘，才能看出归一化有没有把它们改掉/丢掉。
+
+    usage=None（流式上游没发 token_usage）**不再直接丢弃**：每次成功请求
+    必记一行，缺失行 usage_missing=True、cached_reported=False、token 记 0
+    （未知）；上游真实给出全 0 usage 的行则按「已知 0」记录。既不伪造缓存
+    命中，也不把「不知道」算成 0% 命中。
     """
-    fields = _extract_usage(usage)
-    if not fields:
+    # usage 缺失（流式上游没发 token_usage / 非流式聚合不到）也必须记一次
+    # 请求：否则面板 requests 与真实流量脱节。缺失行带 usage_missing=True、
+    # cached_reported=False，统计层据此既不算命中也不算未命中。
+    fields, usage_meta = usage_fields(usage)
+    dedupe_key = _usage_dedupe_key(request_id)
+    if not _claim_usage_record(dedupe_key):
+        log("usage row skipped (duplicate) model=%s%s"
+            % (model, (" acct=%s" % account[:8]) if account else ""),
+            level="WARN", tag="usage")
         return None
     row = {
         "at": time.time(),
@@ -726,6 +893,11 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
         fields["cost_cny"] = 0.0
         row["priced"] = False
     row.update(fields)
+    # 三态标注：上游真实 usage / 缺失 / 强制缺失；cached_reported 决定统计层
+    # 是否把本行计入缓存命中率与「全价请求」判定（见 trae_stats）。
+    row["usage_missing"] = bool(usage_meta["usage_missing"])
+    row["usage_source"] = str(usage_meta["usage_source"])
+    row["cached_reported"] = bool(usage_meta["cached_reported"])
     if fp:
         row.update(fp)
     if account:
@@ -743,6 +915,9 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
     if key_id:
         # 只记 key 的**标识**（panel 分配的 id / legacy / launcher），绝无明文 key。
         row["key_id"] = str(key_id)
+    if request_id:
+        # 显式请求 id 落盘：既作去重依据，也方便与上游/日志对账（限长 200）。
+        row["request_id"] = str(request_id)[:200]
     if realm_reason is not None:
         # #26：本次是否**自动换区**及原因（持久化，面板不依赖响应头即可读到）。
         #   "model_missing" 当前区官方清单里没有这个模型（独占表 / 清单驱动）
@@ -750,14 +925,21 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
         #   ""（空串）      本次**没有换区**（正常路径）
         #   键不存在        该行产生于本字段上线前（旧行）—— 与「没换区」明确区分
         row["realm_reason"] = str(realm_reason)
-    acc = POOL.get(account) if (account and POOL) else None
-    row["realm"] = acc.realm if acc else CURRENT_REALM
-    if gen_ms and gen_ms > 0:
-        row["tokens_per_sec"] = round(
-            fields["completion_tokens"] / (gen_ms / 1000.0), 2)
-    if fields["prompt_tokens"] > 0:
-        row["cache_hit_pct"] = round(
-            fields["cached_tokens"] * 100.0 / fields["prompt_tokens"], 1)
+    # 账号查询是**尽力而为**：桩池可能没有 get，取不到就按当前区记账。
+    try:
+        acc = pool_account(POOL, account)
+        row["realm"] = getattr(acc, "realm", None) or CURRENT_REALM
+    except Exception:
+        row["realm"] = CURRENT_REALM
+    # 缺失行 fields 可能为空 dict：一律 .get，避免 KeyError 把记账打断。
+    _completion = fields.get("completion_tokens", 0) or 0
+    _prompt = fields.get("prompt_tokens", 0) or 0
+    _cached = fields.get("cached_tokens", 0) or 0
+    if gen_ms and gen_ms > 0 and _completion > 0:
+        row["tokens_per_sec"] = round(_completion / (gen_ms / 1000.0), 2)
+    if (_prompt > 0 and not usage_meta["usage_missing"]
+            and usage_meta["cached_reported"]):
+        row["cache_hit_pct"] = round(_cached * 100.0 / _prompt, 1)
     with _lock:
         _usage["requests"] += 1
         for k in USAGE_FIELDS:
@@ -837,8 +1019,19 @@ def _persist_usage(row, summary, fail_label):
         log("%s: %s" % (fail_label, exc))
 
 
-def record_error(model, status, message, elapsed_ms=None):
-    """Count a failed request and append it to the log so errors are visible."""
+def record_error(model, status, message, elapsed_ms=None, stream=None,
+                 account=None, key_id=None, fp=None, request_id=None,
+                 **kwargs):
+    """Count a failed request and append it to the log so errors are visible.
+
+    可选字段与 record_usage 对齐（stream / account / key_id / fp /
+    request_id）：调用方不必两套签名，也不会因为多传一个键把 500 抛给客户端
+    （此前 SOLO 失败路径传 stream= 直接 TypeError）。**未知关键字仍然报错**，
+    避免真正的拼写错误被静默吞掉。
+    """
+    if kwargs:
+        raise TypeError("record_error() got unexpected keyword argument(s): %s"
+                        % ", ".join(sorted(kwargs)))
     row = {
         "at": time.time(),
         "iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -849,6 +1042,16 @@ def record_error(model, status, message, elapsed_ms=None):
         "message": str(message)[:400],
         "elapsed_ms": elapsed_ms,
     }
+    if stream is not None:
+        row["stream"] = bool(stream)
+    if account:
+        row["account"] = str(account)
+    if key_id:
+        row["key_id"] = str(key_id)
+    if request_id:
+        row["request_id"] = str(request_id)[:200]
+    if fp:
+        row.update(fp)
     with _lock:
         _usage["errors"] += 1
         if elapsed_ms is not None:
@@ -2490,6 +2693,7 @@ def runtime_settings_view():
         # 把已有阈值覆盖成默认值。
         "limits": trae_settings.limits_data(ACCOUNTS_DIR),
         "auto_degrade": trae_settings.auto_degrade(ACCOUNTS_DIR),
+        "model_context": trae_settings.model_context(ACCOUNTS_DIR),
         "accounts_dir": ACCOUNTS_DIR,
         "usage_dir": USAGE_DIR,
         "settings_file": trae_settings.settings_path(ACCOUNTS_DIR),
@@ -3365,11 +3569,25 @@ def model_entry(mid, meta, realm=None):
             windows.append(int(value))
     if windows:
         item["context_windows"] = windows
+    tiers = trae_settings.official_context_tiers(meta)
+    if tiers:
+        item["context_window_labels"] = [label for label, _ in tiers]
+        item["context_window_tiers"] = [{"label": label, "tokens": value} for label, value in tiers]
+    selected_ctx = trae_settings.model_context_tokens(
+        ACCOUNTS_DIR, mid, meta=meta, realm=realm)
+    if selected_ctx:
+        item["context_window"] = selected_ctx
+        item["context_length"] = selected_ctx
+        item["context_window_selected"] = trae_settings.get_model_context(ACCOUNTS_DIR, mid, realm=realm)
+        item["context_window_override"] = selected_ctx
+        item["context_policy"] = "local-estimated-budget"
     if prompt_max:
         item["prompt_max_tokens"] = prompt_max
         item["max_input_tokens"] = prompt_max
     elif context_length:
         item["max_input_tokens"] = context_length
+    if selected_ctx:
+        item["max_input_tokens"] = min(selected_ctx, item.get("max_input_tokens") or selected_ctx)
     if meta.get("max_tokens") is not None:
         item["max_output_tokens"] = meta["max_tokens"]
         item["max_completion_tokens"] = meta["max_tokens"]
@@ -3797,6 +4015,7 @@ def catalog_meta_for(model_key, realm=None):
     Anthropic 入口在调用 trae_anthropic.messages_to_chat 时需要一个 meta，
     否则 effort_from_anthropic 取不到 supported 档位表 -> 思考档位被静默丢弃。
     """
+    model_key = trae_catalog.resolve_upstream_key(model_key, realm=realm or CURRENT_REALM)
     for m in trae_catalog.models_for_realm(realm or CURRENT_REALM):
         if m.get("key") == model_key:
             return m
@@ -6701,6 +6920,23 @@ def iter_trae_events(resp):
             yield (event or "message", payload)
 
 
+def enforce_model_context(payload, model, realm):
+    """Enforce an explicitly configured local estimated budget; never truncate history.
+
+    This is not an upstream tokenizer or a way to unlock the provider's window.
+    UTF-8 bytes are a deliberately conservative estimate for text/tool JSON.
+    """
+    meta = catalog_meta_for(model, realm)
+    limit = trae_settings.model_context_tokens(ACCOUNTS_DIR, model, meta=meta, realm=realm)
+    if not limit:
+        return
+    content = {key: payload[key] for key in ("messages", "tools", "tool_choice") if key in payload}
+    estimate = len(json.dumps(content, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    reserve = estimate_request_tokens(payload)
+    if estimate + reserve > limit:
+        raise UpstreamStatus(400, "Configured local context budget exceeded: UTF-8 estimate %d + output reserve %d > %d tokens. No messages were truncated; this estimate is not provider token usage." % (estimate, reserve, limit))
+
+
 def build_trae_body(payload, account=None, model_key=None, realm=None):
     """构造 /api/ide/v1/llm_raw_chat 请求体。
 
@@ -6713,6 +6949,7 @@ def build_trae_body(payload, account=None, model_key=None, realm=None):
     """
     realm = trae_realm(realm or getattr(account, "realm", CURRENT_REALM))
     model = str(payload.get("model") or "")
+    enforce_model_context(payload, model_key or model, realm)
     messages = normalize_roles(payload.get("messages") or [])
     messages = sanitize_messages(messages)
     messages = backfill_reasoning_content(messages, model, model_key)
@@ -9311,6 +9548,8 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if path.startswith("/diag"):
             return True
+        if path in ("/models/available", "/settings/model-context"):
+            return True
         if path.startswith("/admin") or path.startswith("/pricing"):
             return True
         if path.startswith("/update"):
@@ -9573,12 +9812,14 @@ class Handler(BaseHTTPRequestHandler):
         if path in STATIC_ASSETS:
             return self._static_asset(*STATIC_ASSETS[path])
         
-        if path.startswith("/admin/"):
+        if path.startswith("/admin/") and path != "/admin/models":
             return self._handle_admin_get(path, query)
         if path == "/i18n/manifest":
             return self._i18n_manifest()
         if path.startswith("/i18n/"):
             return self._i18n_pack(path[len("/i18n/"):])
+        if path == "/settings/model-context":
+            return self._json(200, {"model_context": trae_settings.model_context(ACCOUNTS_DIR)})
         if path == "/usage/stats":
             req_range, req_since, req_until = range_query(query)
             return self._json(200, trae_stats.cached_usage_report("stats",
@@ -9737,7 +9978,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"health": trae_probe.load_health(),
                                     "summary": model_health_summary(),
                                     "job": probe_state()})
-        if path in ("/v1/models", "/models"):
+        if path in ("/v1/models", "/models", "/models/available", "/admin/models"):
             if not self._authorized():
                 return
             req_realm = self._request_realm() or CURRENT_REALM
@@ -10307,15 +10548,28 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_agent_solo(self, payload):
         model = str(payload.get("model") or "deepseek-v4.1-flash")
-        account = POOL.pick(realm="cn")
-        if not account:
-            account = next((a for a in getattr(POOL, "accounts", []) if getattr(a, "realm", "") == "cn"), None)
+        blocked = self._model_precheck(model, "cn")
+        if blocked:
+            return self._error(getattr(self, "_precheck_status", 400), blocked, "invalid_request_error")
+        try:
+            enforce_model_context(payload, model, "cn")
+        except UpstreamStatus as exc:
+            return self._error(exc.status, exc.detail, "invalid_request_error")
+        account = POOL.pick(realm="cn") if POOL else None
         if not account:
             return self._error(503, "no CN account available", "server_error")
+        started = time.monotonic()
+        request_id = uuid.uuid4().hex
         try:
             result = trae_solo_chat(account, {**payload, "model": model})
         except Exception as exc:
+            record_error(model, 502, str(exc)[:200],
+                         elapsed_ms=int((time.monotonic()-started)*1000))
             return self._error(502, "Trae SOLO upstream failed: %s" % exc, "upstream_error")
+        record_usage(model, result.get("usage"), stream=bool(payload.get("stream")),
+                     elapsed_ms=int((time.monotonic()-started)*1000),
+                     account=account.uid, key_id=self._key_id_for_usage(),
+                     fp=prompt_fingerprint(payload.get("messages")), request_id=request_id)
         tool_calls = result.get("tool_calls") or []
         if payload.get("stream"):
             self._sse_begin()
@@ -10578,14 +10832,23 @@ class Handler(BaseHTTPRequestHandler):
                                            platform=platform)
             except Exception as exc:
                 return self._error(502, "could not start login: %s" % exc)
-            log("oauth device login started (realm=%s, state=%s)"
-                % (target_realm, started["state"][:8]))
+            if not isinstance(started, dict):
+                return self._error(502, "invalid login response")
+            if started.get("status") == "unsupported":
+                message = started.get("message") or "Device authorization is unsupported; import desktop credentials or refreshToken."
+                return self._json(501, dict(started, ok=False, error={
+                    "message": message, "type": "unsupported_operation"}))
+            state = str(started.get("state") or "")
+            if not state:
+                return self._error(502, "login response missing state")
+            log("device login started (realm=%s, state=%s)"
+                % (target_realm, state[:8]))
             return self._json(200, started)
         if path == "/accounts/login/cancel":
             state = payload.get("state") or ""
             return self._json(200, {"cancelled": POOL.cancel_login(state)})
         if path == "/accounts/import/pat":
-            pat = payload.get("pat") or ""
+            pat = payload.get("refresh_token") or payload.get("refreshToken") or payload.get("pat") or ""
             realm = payload.get("realm") or CURRENT_REALM
             if realm not in ("intl", "cn"):
                 realm = "cn"
@@ -10602,38 +10865,34 @@ class Handler(BaseHTTPRequestHandler):
                 account = add(pat, realm=realm)
             except Exception as exc:
                 return self._error(400, "PAT import failed: %s" % exc)
-            log("imported PAT account %s (realm=%s)"
-                % (account.uid[:8], realm))
-            return self._json(200, {"imported": [account.public()],
+            view = account if isinstance(account, dict) else account.public()
+            log("imported refreshToken account (%s)" % realm)
+            return self._json(200, {"imported": [view],
                                     "accounts": account_views()})
         if path == "/accounts/import/desktop":
             # 两步确认：{} 只读扫描（双区：桌面 App auth.v1.dat + CLI user）；
             # {"path":...} 按确认导入该凭证；{"all":true} 导入全部有效项。
             target_path = payload.get("path")
-            if target_path:
-                realm = payload.get("realm")
+            if target_path or payload.get("all"):
+                if not self._client_is_loopback():
+                    return self._error(403, "desktop import is loopback-only", "invalid_request_error")
                 try:
-                    account = trae_accounts.import_desktop_credential(
-                        path=target_path, realm=realm)
+                    result = trae_accounts.import_desktop_credential(
+                        path=target_path or None, realm=payload.get("realm"))
                 except Exception as exc:
                     return self._error(400, "import failed: %s" % exc)
-                log("imported %s (%s) from local client credential"
-                    % (account.uid[:8], account.realm), tag="accounts")
+                if not isinstance(result, dict):
+                    return self._error(502, "invalid desktop import response")
+                errors = result.get("errors") or []
+                imported = result.get("accounts") or []
+                changed = int(result.get("imported") or 0) + int(result.get("updated") or 0)
+                if errors and not changed:
+                    return self._json(400, {"ok": False, "error": {
+                        "message": "; ".join(map(str, errors))[:500],
+                        "type": "invalid_request_error"}, "result": result})
+                log("desktop import: %d changed" % changed, tag="accounts")
                 return self._json(200, {
-                    "imported": [account.public()],
-                    "accounts": account_views(),
-                    "pool_uids": [a.uid for a in POOL.accounts],
-                })
-            if payload.get("all"):
-                try:
-                    imported = trae_accounts.import_desktop_credential()
-                except Exception as exc:
-                    return self._error(400, "import failed: %s" % exc)
-                for account in imported:
-                    log("imported %s (%s) from local client credential"
-                        % (account.uid[:8], account.realm), tag="accounts")
-                return self._json(200, {
-                    "imported": [a.public() for a in imported],
+                    "ok": True, "imported": imported, "result": result,
                     "accounts": account_views(),
                     "pool_uids": [a.uid for a in POOL.accounts],
                 })
@@ -10777,8 +11036,8 @@ class Handler(BaseHTTPRequestHandler):
             report = POOL.import_rows(rows, realm=forced_realm,
                                       overwrite=overwrite)
             log("account import: %d added, %d updated, %d skipped, %d invalid"
-                % (len(report["added"]), len(report["updated"]),
-                   len(report["skipped"]), len(report["invalid"])))
+                % (report.get("imported", 0), report.get("updated", 0),
+                   report.get("skipped", 0), len(report.get("errors") or [])))
             return self._json(200, {
                 "count": len(rows),
                 "result": report,
@@ -11177,6 +11436,10 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        self.degraded_from = ""
+        if self._is_panel_route(path) and not self._panel_ok():
+            self.close_connection = True
+            return self._error(401, "panel password required", "invalid_request_error")
 
         if path.startswith("/admin/"):
             body = self._payload_or_error()
@@ -11205,7 +11468,22 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/credits/probe":
             return self._json(200, {"ok": True, "results": []})
         if path == "/settings/model-context":
-            return self._json(200, {"ok": True, "model_context": {}})
+            body = self._payload_or_error()
+            if body is None:
+                return
+            model = str(body.get("model") or "").strip()
+            realm = body.get("realm") or CURRENT_REALM
+            if realm not in ("cn", "intl") or not model:
+                return self._error(400, "model and a valid realm are required", "invalid_request_error")
+            meta = catalog_meta_for(model, realm)
+            try:
+                table = trae_settings.set_model_context(
+                    ACCOUNTS_DIR, model, body.get("label"), meta=meta, realm=realm)
+            except ValueError as exc:
+                return self._error(400, str(exc), "invalid_request_error")
+            except OSError as exc:
+                return self._error(500, str(exc), "configuration_error")
+            return self._json(200, {"ok": True, "model_context": table})
         if path == "/settings/web-tools":
             return self._json(200, {"ok": True, "web_tools": False})
         if path == "/settings/tool-echo-mode":
@@ -11706,7 +11984,11 @@ def main():
 
     POOL = trae_accounts.AccountPool(ACCOUNTS_DIR, log=log)
     POOL.load()
-    trae_stats.POOL = POOL
+    try:
+        trae_stats.configure(usage_dir=USAGE_DIR, log_path=USAGE_LOG,
+                             summary_path=USAGE_SUMMARY, pool=POOL)
+    except Exception:
+        trae_stats.POOL = POOL
     load_persisted_realm()
     # task-61：把设置里的护栏阈值 + free 名单**同批**推给池（R3）；阈值全 0 时
     # 不产生任何副作用，任一 > 0 则惰性启动后台上新线程（G1 的恢复路径）。
