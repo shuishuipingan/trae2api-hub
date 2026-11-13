@@ -9134,9 +9134,83 @@ def _responses_failed_frame(holder, code, message):
 # ---------------------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # Bound client-socket reads so a peer that declares a body but withholds it
+    # can't stall a worker thread forever (drain and _read_payload both close on
+    # timeout). StreamRequestHandler.setup applies this to the connection. It
+    # only fires during an active recv, not while we wait on the upstream SSE,
+    # so long chats are unaffected; idle keep-alive connections close after it.
+    timeout = 30
     # Which configured API key the caller used, set by _key_ok(). Its bound
     # realm decides the upstream exit for this request alone.
     key_entry = None
+    # True once the current request's Content-Length body has been read off
+    # the socket. Reset per request; consulted by _drain_request_body.
+    _body_consumed = False
+
+    def handle_one_request(self):
+        # Dispatch first, then drain: after super() returns, self.headers is
+        # THIS request's (parse_request ran inside it), so the drain reads the
+        # right Content-Length. Draining before super() would see the previous
+        # request's headers, or none at all on the first request.
+        self._body_consumed = False
+        super(Handler, self).handle_one_request()
+        self._drain_request_body()
+
+    def _drain_request_body(self):
+        """Consume any unread request body, else close the connection.
+
+        A body we cannot fully and safely read (chunked, malformed/oversized
+        Content-Length, or a short read) forces close_connection so leftover
+        bytes can never be parsed as the next request line on a keep-alive
+        connection. This is the fix for "Bad request syntax ('{...}POST ...')".
+        """
+        if self.close_connection:
+            return
+        # Only drain when THIS request's request line actually parsed.
+        # parse_request sets self.command on success; the 414 path (oversized
+        # request line) skips it, leaves command='' with the PREVIOUS request's
+        # stale headers, and send_error does NOT set close_connection. Draining
+        # against stale headers mis-reads bytes, so close instead.
+        if not getattr(self, "command", ""):
+            self.close_connection = True
+            return
+        headers = self.headers
+        # Chunked request bodies carry no Content-Length and are not read by
+        # _read_payload; we can't frame them, so don't reuse the connection.
+        # Checked before _body_consumed: a chunked POST may have been treated
+        # as an empty body yet still have bytes pending on the socket.
+        if "chunked" in (headers.get("Transfer-Encoding") or "").lower():
+            self.close_connection = True
+            return
+        raw_len = headers.get("Content-Length")
+        if raw_len is None:
+            return                      # no body declared (e.g. GET)
+        try:
+            length = int(raw_len)
+        except (ValueError, TypeError):
+            self.close_connection = True
+            return
+        if length <= 0:
+            return
+        if length > MAX_PAYLOAD_BYTES:
+            # Rejected as oversized; closing is cheaper and safer than
+            # draining tens of MB just to reuse the socket.
+            self.close_connection = True
+            return
+        if self._body_consumed:
+            return                      # handler already read exactly length
+        remaining = length
+        try:
+            while remaining > 0:
+                data = self.rfile.read(min(65536, remaining))
+                if not data:
+                    self.close_connection = True   # peer went away mid-body
+                    return
+                remaining -= len(data)
+        except Exception:
+            self.close_connection = True
+            return
+        self._body_consumed = True
 
     def handle(self):
         try:
@@ -10334,18 +10408,37 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_payload(self, max_bytes=MAX_PAYLOAD_BYTES, allow_list=False):
-        """Parse the request body into a dict (or a list when allow_list)."""
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-        except Exception:
+        """Parse the request body into a dict (or a list when allow_list).
+
+        Any body we can't fully/safely read sets close_connection so the
+        post-dispatch drain won't reuse a polluted keep-alive socket.
+        """
+        raw_len = self.headers.get("Content-Length")
+        if raw_len is None:
             length = 0
+        else:
+            try:
+                length = int(raw_len)
+            except (ValueError, TypeError):
+                self.close_connection = True
+                raise BadJSON()
         if length > max_bytes:
+            self.close_connection = True
             raise BodyTooLarge(length)
         if length < 0:
+            self.close_connection = True
             raise BadJSON()
         try:
-            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
-            data = json.loads(raw or "{}")
+            raw_bytes = self.rfile.read(length) if length else b""
+        except Exception:
+            self.close_connection = True
+            raise BadJSON()
+        if len(raw_bytes) < length:
+            self.close_connection = True   # short read: peer closed / lied
+        # Bytes are off the socket now, even if they fail to decode/parse.
+        self._body_consumed = True
+        try:
+            data = json.loads(raw_bytes.decode("utf-8") or "{}")
         except Exception:
             raise BadJSON()
         if isinstance(data, dict):
