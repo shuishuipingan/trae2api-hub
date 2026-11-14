@@ -1,3 +1,35 @@
+## [Unreleased]
+
+### ✨ 新增功能
+
+#### Qoder CN 作为第三个上游通道
+
+- 新增 `trae_qoder.py`：把 Qoder CN 接进同一套 `/v1/chat/completions`，与 Trae 的
+  raw_chat / SOLO 两条通道并列。模型 id 带 `qoder/` 前缀（如 `qoder/gmodel`），
+  避免与 Trae 同名的 GLM-5.3 / Kimi-K3 混淆。
+- `/v1/models` 在凭据可读时追加 Qoder 的 12 个 chat 模型；响应里多一个 `qoder_count`。
+- 协议层复现三套机制：COSY 签名头（MD5 over payload/RSA 包裹的 AES key/时间戳/body/签名路径）、
+  `Encode=1` 的置换 base64 请求体、双层包裹 SSE（信封的 `body` 字段本身是 JSON 字符串）。
+- 加密只依赖标准库：AES 复用 `trae_client.aes_cbc_encrypt`（纯 Python），
+  RSA PKCS#1 v1.5 用 `pow()` 实现——**不引入 pycryptodome**，零依赖设计不变。
+
+#### 凭据与降级
+
+- 默认只读 Qoder CN 桌面端登录态（`%APPDATA%/com.qodercn.app.stable` 的
+  `Local State` + `auth.v1.dat`），绝不写回。
+- 环境变量覆盖：`QODER_CN_TOKEN` / `QODER_CN_UID` / `QODER_CN_MACHINE_ID` /
+  `QODER_CN_DATA_DIR` / `QODER_CN_UMID_CACHE`，供容器或无桌面端部署使用。
+- `QODER_DISABLE=1` 整体关闭；凭据读不到时 `credential_available()` 返回 False，
+  `/v1/models` 不列 Qoder 行，Trae 侧功能完全不受影响。
+
+### 📝 说明
+
+- 上游模型目录是 **GET** 不是 POST；发 POST 回 `Request method 'POST' not supported`。
+- chat 请求体**不能带 `business` 块**，带上回 `1210 API 调用参数有误`。
+- `enable_thinking: false` 会让 GLM-5.3 / GLM-5.3-Flash 回 1210（实测 `{}` 与
+  `{enable_thinking: true}` 均正常），因此这两条被列入 `ALWAYS_THINKING_KEYS`，
+  对它们省略该字段、由上游用默认档位。
+
 ## [1.6.0] - 2026-11-12
 
 ### ✨ 新增功能

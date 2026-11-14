@@ -56,6 +56,7 @@ import trae_accounts
 import trae_agents
 import trae_anthropic
 import trae_catalog
+import trae_qoder
 import trae_fingerprint
 import trae_probe
 import trae_settings
@@ -2964,6 +2965,100 @@ def read_local_models(realm=None):
         log("model catalog read from bundled snapshot: %d models (%s)"
             % (len(out), r))
     return out
+
+
+QODER_PREFIX = "qoder/"
+
+
+def qoder_enabled():
+    """Qoder 通道是否可用：凭据能读到才算。环境变量可强制关闭。"""
+    if os.environ.get("QODER_DISABLE") == "1":
+        return False
+    try:
+        return trae_qoder.credential_available()
+    except Exception:                                          # noqa: BLE001
+        return False
+
+
+def qoder_model_entries():
+    """把 Qoder 的模型目录转成 /v1/models 的行。
+
+    名字统一加 `qoder/` 前缀：Qoder 与 Trae 都提供 GLM-5.3 / Kimi-K3 等同名
+    模型，裸名会让客户端选到错的那一家，且无法用 id 区分计费来源。
+    行里同时保留 `upstream_key`（Qoder 自己的 key）与 `provider`，便于排查。
+    """
+    if not qoder_enabled():
+        return []
+    try:
+        rows = trae_qoder.model_list()
+    except Exception as exc:                                   # noqa: BLE001
+        log("qoder model list failed: %s" % str(exc)[:160],
+            level="WARN", tag="models")
+        return []
+
+    out = []
+    for row in rows:
+        key = row.get("key")
+        if not key:
+            continue
+        display = row.get("display_name") or key
+        created = 0
+        try:
+            created = int(time.time())
+        except Exception:                                      # noqa: BLE001
+            pass
+        item = {
+            "id": QODER_PREFIX + key,
+            "object": "model",
+            "created": created,
+            "owned_by": "qoder",
+            "provider": "qoder",
+            "realm": "qoder",
+            "upstream_key": key,
+            "name": display,
+            "display_name": display,
+            "enabled": bool(row.get("enabled", True)),
+            "available": bool(row.get("available", True)),
+            "multimodal": row.get("multimodal"),
+            "context_window": row.get("context_window"),
+            "thinking": row.get("thinking"),
+            "consumption_rate": row.get("consumption_rate"),
+            # 客户端可以用 id（带前缀）或裸 key，两条都写进 aliases
+            "aliases": [QODER_PREFIX + key, key, display],
+        }
+        if row.get("is_default"):
+            item["is_default"] = True
+        out.append(item)
+    return out
+
+
+def qoder_model_name(model):
+    """客户端给的名字 -> Qoder 上游 key。不是 Qoder 的模型返回 None。
+
+    认三种写法：`qoder/gmodel`（/v1/models 里的 id）、`gmodel`（裸 key）、
+    `GLM-5.3`（显示名）。裸名优先给 Qoder 只在**唯一命中**时才用，
+    否则同名模型（GLM-5.3）会被 Trae 的请求误路由到 Qoder。
+    """
+    raw = str(model or "").strip()
+    if not raw:
+        return None
+    if raw.lower().startswith(QODER_PREFIX):
+        return trae_qoder.resolve_model(raw[len(QODER_PREFIX):]) or \
+            raw[len(QODER_PREFIX):]
+    if not qoder_enabled():
+        return None
+    try:
+        rows = trae_qoder.model_list()
+    except Exception:                                          # noqa: BLE001
+        return None
+    lowered = raw.lower()
+    for row in rows:
+        if lowered == str(row.get("key") or "").lower():
+            return row["key"]
+    for row in rows:
+        if lowered == str(row.get("display_name") or "").lower():
+            return row["key"]
+    return None
 
 
 def fetch_models(realm=None, refresh=False):
@@ -10009,6 +10104,13 @@ class Handler(BaseHTTPRequestHandler):
                     "realms": ["cn", "intl"]})
             data = [model_entry(mid, meta, realm=req_realm)
                     for mid, meta in entries]
+            # Qoder CN 作为第三个上游并进来。它是 opt-in 之外的默认行为，
+            # 但**只在凭据可读时**才列——列了却调不通比不列更糟。
+            # 名字带 `qoder/` 前缀，避免和 Trae 的 GLM-5.3 / Kimi-K3 撞名：
+            # 两家都有 GLM-5.3，同名会让客户端选到错的那家。
+            qoder_rows = qoder_model_entries()
+            if qoder_rows:
+                data = data + qoder_rows
             try:
                 try:
                     catalog_source = trae_catalog.available_source(req_realm)
@@ -10023,6 +10125,7 @@ class Handler(BaseHTTPRequestHandler):
                 "count": len(data),
                 "available_count": sum(1 for m in data
                                        if m.get("available") is True),
+                "qoder_count": len(qoder_rows),
                 "catalog_source": catalog_source})
         if path in ("/usage", "/v1/usage"):
             if not self._authorized():
@@ -10555,6 +10658,85 @@ class Handler(BaseHTTPRequestHandler):
             token = PANEL.create()
             return self._json(200, {"ok": True, "token": token})
         return self._error(404, "not found", "invalid_request_error")
+
+    def _handle_qoder_chat(self, payload, model_key):
+        """Qoder 通道的 /v1/chat/completions。
+
+        与 Trae 的两条通道（raw_chat / SOLO）并列，共用同一份 OpenAI 形状的
+        出入参。Qoder 侧的错误一律转成 OpenAI 错误体，不把 COSY/双层 SSE 的
+        内部形状漏给客户端——那只会让人以为是网关坏了。
+        """
+        started = time.monotonic()
+        request_id = uuid.uuid4().hex
+        messages = payload.get("messages") or []
+        want_stream = bool(payload.get("stream"))
+
+        request = {
+            "max_tokens": payload.get("max_tokens")
+            or payload.get("max_completion_tokens"),
+            "enable_thinking": bool(payload.get("enable_thinking") is True
+                                    or (payload.get("reasoning_effort")
+                                        not in (None, "", "none", "off"))),
+            "reasoning_effort": payload.get("reasoning_effort"),
+            "session_id": payload.get("session_id") or payload.get("user"),
+            "tools": payload.get("tools"),
+        }
+
+        if want_stream:
+            self._sse_begin()
+            self.send_header  # noqa: B018  (占位：头已在 _sse_begin 发出)
+            finish = "stop"
+            try:
+                for chunk in trae_qoder.stream_chat(model_key, messages, request):
+                    for choice in chunk.get("choices") or []:
+                        if choice.get("finish_reason"):
+                            finish = choice["finish_reason"]
+                    frame = dict(chunk)
+                    frame["id"] = "chatcmpl-qoder-%s" % request_id
+                    self._sse_write(
+                        ("data: " + json.dumps(frame, ensure_ascii=False)
+                         + "\n\n").encode("utf-8"))
+            except trae_qoder.QoderError as exc:
+                record_error(model_key, exc.status, str(exc)[:200],
+                             elapsed_ms=int((time.monotonic() - started) * 1000))
+                err = {"error": {"message": exc.message, "type": exc.kind,
+                                 "code": exc.status}}
+                self._sse_write(
+                    ("data: " + json.dumps(err, ensure_ascii=False)
+                     + "\n\n").encode("utf-8"))
+            except Exception as exc:                            # noqa: BLE001
+                record_error(model_key, 502, str(exc)[:200],
+                             elapsed_ms=int((time.monotonic() - started) * 1000))
+                err = {"error": {"message": "Qoder upstream failed: %s" % exc,
+                                 "type": "upstream_error", "code": 502}}
+                self._sse_write(
+                    ("data: " + json.dumps(err, ensure_ascii=False)
+                     + "\n\n").encode("utf-8"))
+            self._sse_write(b"data: [DONE]\n\n")
+            self._sse_end()
+            record_usage(model_key, None, stream=True,
+                         elapsed_ms=int((time.monotonic() - started) * 1000),
+                         account="qoder", key_id=self._key_id_for_usage(),
+                         fp=prompt_fingerprint(messages), request_id=request_id)
+            return
+
+        try:
+            result = trae_qoder.complete_chat(model_key, messages, request)
+        except trae_qoder.QoderError as exc:
+            record_error(model_key, exc.status, str(exc)[:200],
+                         elapsed_ms=int((time.monotonic() - started) * 1000))
+            return self._error(exc.status, exc.message, exc.kind)
+        except Exception as exc:                                # noqa: BLE001
+            record_error(model_key, 502, str(exc)[:200],
+                         elapsed_ms=int((time.monotonic() - started) * 1000))
+            return self._error(502, "Qoder upstream failed: %s" % exc,
+                               "upstream_error")
+        result["id"] = "chatcmpl-qoder-%s" % request_id
+        record_usage(model_key, result.get("usage"), stream=False,
+                     elapsed_ms=int((time.monotonic() - started) * 1000),
+                     account="qoder", key_id=self._key_id_for_usage(),
+                     fp=prompt_fingerprint(messages), request_id=request_id)
+        return self._json(200, result)
 
     def _handle_agent_solo(self, payload):
         model = str(payload.get("model") or "deepseek-v4.1-flash")
@@ -11680,6 +11862,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_anthropic(path, payload)
 
         # ---- Chat Completions 主链路 ----
+        # Qoder 优先判定：它的 id 带 `qoder/` 前缀，或裸名在 Qoder 目录里唯一命中。
+        # 放在 SOLO 判定之前，否则 `qoder/gmodel` 会被当成未知的 Trae 模型。
+        _qoder_key = qoder_model_name(payload.get("model"))
+        if _qoder_key:
+            return self._handle_qoder_chat(payload, _qoder_key)
         if str(payload.get("model") or "") in SOLO_AGENT_MODELS:
             return self._handle_agent_solo(payload)
         normalize_tool_choice(payload)
