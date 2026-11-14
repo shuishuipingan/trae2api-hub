@@ -1597,7 +1597,14 @@ def test_deploy():
     check("README 含端口 8791", "8791" in readme)
     check("README 含 docker 部署段", "docker" in readme.lower())
     check("README 含 OpenAI 兼容用法", "/v1/chat/completions" in readme)
-    check("README 未残留 qoder", "qoder" not in readme.lower())
+    # README 现在合法地提到 Qoder（它是可选的第三上游通道，见「Qoder CN 中转」一节）。
+    # 这条断言原本防的是「从 Qoder 改名到 Trae 后残留旧产品名」，所以要守的是
+    # **旧名称形态**而不是 qoder 这个词本身：`qoder2api` / `qoder-proxy` 这类
+    # 说明还在把自己当 Qoder 网关。其余部署文件仍然整体禁止 qoder 字样。
+    check("README 未残留 Qoder 旧产品名",
+          "qoder2api" not in readme.lower()
+          and "qoder-proxy" not in readme.lower()
+          and "qoder 网关" not in readme.lower())
 
     ignores = texts[".dockerignore"]
     for pat in ("accounts/", "usage/", ".team/", ".recon/"):

@@ -181,6 +181,52 @@ curl "http://127.0.0.1:8791/v1/models?realm=cn"
 
 ---
 
+## 🔀 Qoder CN 中转（可选）
+
+除 Trae 双区外，网关还可以把 **Qoder CN** 当作第三个上游，与 Trae 并列共用
+`/v1/chat/completions`。默认开启，凭据读不到时自动跳过，不影响 Trae 任何功能。
+
+### 模型命名
+
+Qoder 的模型 id 一律带 `qoder/` 前缀。两家都有 GLM-5.3 / Kimi-K3，裸名会选到错的那一家：
+
+| id | 模型 | id | 模型 |
+|---|---|---|---|
+| `qoder/auto` | Auto | `qoder/gmodel` | GLM-5.3 |
+| `qoder/qmodel_latest` | Qwen4-Max-Preview | `qoder/gfmodel` | GLM-5.3-Flash |
+| `qoder/qmodel_38max` | Qwen3.8-Max | `qoder/kmodel_latest` | Kimi-K3.1-Pro |
+| `qoder/qfmodel` | Qwen3.8-Flash | `qoder/kmodel` | Kimi-K2.8-Preview |
+| `qoder/dmodel` | DeepSeek-V4-Pro | `qoder/jmodel` | Step-5-Preview |
+| `qoder/dfmodel` | DeepSeek-Flash | `qoder/mmodel` | MiniMax-M3.1-Flash |
+
+裸 key（`gmodel`）与显示名也能用，但同名时优先 Trae——要 Qoder 那家请带前缀。
+
+```bash
+curl http://127.0.0.1:8791/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qoder/gmodel","messages":[{"role":"user","content":"hi"}],"stream":false}'
+```
+
+### 凭据
+
+默认只读 Qoder CN 桌面端登录态（Windows 上走 DPAPI，仅读不写）。容器或无桌面端时用环境变量：
+
+| 变量 | 用途 |
+|---|---|
+| `QODER_CN_TOKEN` | `dt-` 开头的访问令牌（给了就不读桌面端） |
+| `QODER_CN_UID` | 账号 uid |
+| `QODER_CN_MACHINE_ID` | 机器指纹（不给则读 `~/.qoder-cn/umid-cache.json`） |
+| `QODER_CN_DATA_DIR` | 覆盖桌面端数据目录 |
+| `QODER_DISABLE` | 设为 `1` 整体关闭 Qoder 通道 |
+
+自检：`python trae_qoder.py`（打印凭据、模型列表，并跑一次对话）。
+
+> 思考型模型（如 `qoder/kmodel_latest`）会先吐大量 `reasoning_content`，
+> `max_tokens` 给小了会只拿到思考、`content` 为空。正文在 `message.content`，
+> 思考过程在 `message.reasoning_content`。
+
+---
+
 ## 🧭 国际版模型与额度
 
 国际版 `/v1/models` 当前目录 10 个，其中 6 个 Free 可用：
