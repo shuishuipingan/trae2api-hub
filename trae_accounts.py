@@ -32,6 +32,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from trae_account_types import ENTERPRISE_UNSUPPORTED_MESSAGE, is_enterprise_account
+
 # ---------------------------------------------------------------------------
 # 双区出口表（.team/PROTOCOL.md 第一节）
 # ---------------------------------------------------------------------------
@@ -110,6 +112,14 @@ class AccountError(Exception):
         super().__init__(message)
         self.code = code
         self.status = status
+
+def ensure_personal_account(value):
+    """Keep the optional trae_client fallback independent of protocol imports."""
+    if is_enterprise_account(value):
+        raise AccountError(ENTERPRISE_UNSUPPORTED_MESSAGE,
+                           code="unsupported_enterprise_account", status=400)
+    return value
+
 
 class RefreshSummary(dict):
     """刷新结果：本质是 dict（可 JSON），真假值按「是否真的刷新成功」判定。
@@ -454,6 +464,7 @@ def _scrub_secrets(text, *accounts):
 def get_realm_config(realm):
     """取区域配置（未知值回落 cn）。含旧字段别名，方便过渡期调用方。"""
     key = str(realm or "").strip().lower()
+    ensure_personal_account({"realm": key})
     if key not in REALMS:
         key = DEFAULT_REALM
     cfg = dict(REALMS[key])
@@ -510,6 +521,7 @@ def detect_realm_from_domain(domain):
 def realm_key(realm):
     """把 cn/CN/国内/intl/US/global 归一成 cn|intl；无法判定返回 ''（不猜）。"""
     raw = str(realm or "").strip().lower()
+    ensure_personal_account({"realm": raw})
     if raw in ("cn", "china", "zh", "国内", "国内版"):
         return "cn"
     if raw in ("intl", "us", "global", "sg", "国际", "国际版"):
@@ -637,6 +649,7 @@ def normalize_refresh_result(raw):
         raise AccountError("refresh returned nothing")
     if not isinstance(raw, dict):
         raise AccountError("refresh returned %s" % type(raw).__name__)
+    ensure_personal_account(raw)
     body = raw
     for wrapper in ("Result", "result", "data", "Data"):
         if isinstance(body.get(wrapper), dict):
@@ -667,6 +680,7 @@ def normalize_refresh_result(raw):
 
 def _fallback_refresh(account, timeout=30):
     """trae_client 不可用时的内建 ExchangeToken 兜底（轮换式）。"""
+    ensure_personal_account(account)
     _note_fallback("trae_client 不可导入（%s），刷新使用内建 ExchangeToken 兜底"
                    % (_CLIENT_ERROR or "unknown"))
     cfg = get_realm_config(account.realm)
@@ -717,6 +731,7 @@ def _refresh_with_token(refresh_token, realm, client=None, uid=""):
 
     区域必须由调用方显式给出（refreshToken 不携带区域信息）。
     """
+    ensure_personal_account(refresh_token)
     realm = realm_key(realm)
     if not realm:
         raise AccountError("请显式指定 realm（cn 或 intl）：refreshToken 不携带区域信息")
@@ -753,6 +768,7 @@ def _refresh_with_token(refresh_token, realm, client=None, uid=""):
 
 def _call_client_refresh(account, client=None):
     """委托 trae_client.refresh_account；返回归一后的结果 dict。"""
+    ensure_personal_account(account)
     client = client or _load_client()
     if client is None:
         return normalize_refresh_result(_fallback_refresh(account))
@@ -923,6 +939,7 @@ class Account(object):
 
     def __init__(self, data=None, path=None, directory=None):
         data = data if isinstance(data, dict) else {}
+        ensure_personal_account(data)
         profile = data.get("account") if isinstance(data.get("account"), dict) else {}
         user_region = data.get("user_region") or data.get("userRegion") or {}
         if not isinstance(user_region, dict):
@@ -1266,6 +1283,7 @@ class Account(object):
 
     def save(self, directory=None):
         """原子落盘（tmp -> fsync -> 0600 -> os.replace）。"""
+        ensure_personal_account(self)
         target_dir = directory or self.directory or accounts_dir()
         if not self.uid:
             raise AccountError("cannot save account without uid")
@@ -1351,6 +1369,8 @@ class Account(object):
         ensure_fresh() 触发刷新（避免在选号循环里打网络）。
         """
         now = now or _now()
+        if is_enterprise_account(self):
+            return False
         if not self.enabled or not self.token:
             return False
         if self.model_disabled(model):
@@ -1440,6 +1460,8 @@ class Account(object):
         无 refresh_token / 无 expires_at 一律视为「不需要刷新」——避免没有
         过期信息的账号被反复打 ExchangeToken（轮换式令牌，成本高）。
         """
+        if is_enterprise_account(self):
+            return False
         if not self.refresh_token or not self.expired_at:
             return False
         return self.expired_at <= (now or _now()) + max(0.0, float(ahead))
@@ -1456,6 +1478,8 @@ class Account(object):
 
     def apply_refresh_result(self, result):
         """把归一后的刷新结果写回对象并原子落盘；失败不落盘。"""
+        ensure_personal_account(self)
+        ensure_personal_account(result)
         token = str(result.get("token") or "")
         if not token:
             raise AccountError("refresh result has no token")
@@ -1492,6 +1516,7 @@ class Account(object):
         force=False 且 token 尚未进入刷新窗口时直接返回 skipped。
         返回脱敏摘要；任何失败都不触碰已有文件。
         """
+        ensure_personal_account(self)
         with self._lock:
             now = _now()
             if not self.refresh_token:
@@ -1730,6 +1755,8 @@ class Account(object):
         """从桌面结构（PROTOCOL 第三节）构造 Account。"""
         if not isinstance(row, dict):
             raise ValueError("desktop row is not an object")
+        ensure_personal_account(row)
+        ensure_personal_account({"realm": realm})
         data = dict(row)
         if realm:
             data["realm"] = realm
@@ -1971,13 +1998,14 @@ class AccountPool(object):
         for account in self.by_realm(realm):
             if account.ready():
                 return self._apply_egress(account)
-        accounts = self.by_realm(realm)
+        accounts = [a for a in self.by_realm(realm) if not is_enterprise_account(a)]
         return self._apply_egress(accounts[0]) if accounts else None
 
     # -- 增删改 ----------------------------------------------------------
     def add(self, account):
         if not isinstance(account, Account):
             raise TypeError("add() expects Account")
+        ensure_personal_account(account)
         with self._lock:
             existing = self.get(account.uid)
             if existing is not None:
@@ -2294,6 +2322,8 @@ class AccountPool(object):
         换出来的 refreshToken 已轮换，必须立即落盘 —— 落盘失败等于该令牌作废。
         返回脱敏视图 + uidSynthetic（uid 由令牌摘要推导时为 True）。
         """
+        ensure_personal_account(refresh_token)
+        ensure_personal_account({"realm": realm})
         token_in = str(refresh_token or "").strip().strip('"').strip("'")
         if token_in.lower().startswith("bearer "):
             token_in = token_in[7:].strip()
@@ -2313,8 +2343,11 @@ class AccountPool(object):
                          or (a.extra or {}).get("refreshTokenOrigin") == seed),
                         None)
             if same is not None:
+                ensure_personal_account(same)
                 explicit_uid = same.uid
 
+        if explicit_uid:
+            ensure_personal_account(self.get(explicit_uid))
         result = _refresh_with_token(token_in, realm_key_value, client=client,
                                      uid=explicit_uid)
         derived_uid = ""
@@ -2452,6 +2485,8 @@ class AccountPool(object):
         返回 Account 对象（/accounts/import/pat 直接 .uid / .public()）。
         失败抛 AccountError，消息里带原因（realm 缺失 / 令牌为空 / 上游拒绝）。
         """
+        ensure_personal_account(pat)
+        ensure_personal_account({"realm": realm})
         token_in = str(pat or "").strip().strip('"').strip("'")
         if token_in.lower().startswith("bearer "):
             token_in = token_in[7:].strip()
@@ -2833,6 +2868,8 @@ def normalise_import_row(row, realm=None):
     """导入行 -> Account 构造用 dict（白名单，运行期状态一律重置）。"""
     if not isinstance(row, dict):
         raise ValueError("账号行不是对象")
+    ensure_personal_account(row)
+    ensure_personal_account({"realm": realm})
     token = str(_first_present(row, "token", "accessToken", "access_token",
                                default="") or "").strip()
     if not token:

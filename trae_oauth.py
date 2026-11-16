@@ -45,7 +45,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 try:  # Reuse the repository's audited P-256 arithmetic.
-    from trae_client import P256_N, p256_public_point
+    from trae_client import P256_N, p256_public_point, is_enterprise_account
 except Exception as exc:  # pragma: no cover - import environment failure
     raise RuntimeError("trae_client P-256 helpers are required") from exc
 
@@ -93,6 +93,7 @@ POLL_INTERVAL = 2
 
 _MESSAGES = {
     "invalid_realm": "不支持的账号区域",
+    "unsupported_enterprise_account": "Trae Enterprise/SaaS 使用独立租户协议；当前 OAuth 仅支持个人版，企业凭据未入库。",
     "invalid_platform": "不支持的平台",
     "invalid_owner": "owner 参数非法",
     "invalid_redirect_uri": "回调地址必须是 HTTPS 或 127.0.0.1",
@@ -594,6 +595,8 @@ class OAuthManager:
             "login_channel": "native_ide",
             "plugin_version": PLUGIN_VERSION,
             "auth_type": "local",
+            # Enterprise uses a separate tenant login/exchange/data plane.
+            "hide_saas_login": "true",
             "redirect": "0",
             "login_trace_id": state,
             "auth_callback_url": callback_uri,
@@ -844,6 +847,8 @@ class OAuthManager:
 
     def _parse_callback(self, session: _Session,
                         params: Mapping[str, str]) -> dict:
+        if is_enterprise_account(params):
+            raise OAuthError("unsupported_enterprise_account")
         if "error" in params or params.get("error_code") not in (None, "", "0"):
             raise OAuthError("authorization_denied")
         # Callback userInfo is untrusted for identity. It may supply a display
@@ -855,7 +860,11 @@ class OAuthManager:
         if raw_user:
             try:
                 user_doc = _json_object(raw_user)
-            except OAuthError:
+                if is_enterprise_account(user_doc):
+                    raise OAuthError("unsupported_enterprise_account")
+            except OAuthError as exc:
+                if exc.code == "unsupported_enterprise_account":
+                    raise
                 user_doc = {}
             screen_name = _first_text(user_doc, "ScreenName", "screenName",
                                       "UserName", "userName")[:128]
@@ -1151,6 +1160,8 @@ class OAuthManager:
             raise OAuthError("exchange_failed")
         if not isinstance(data, dict):
             raise OAuthError("exchange_failed")
+        if is_enterprise_account(data):
+            raise OAuthError("unsupported_enterprise_account")
         metadata = data.get("ResponseMetadata")
         if isinstance(metadata, dict) and metadata.get("Error"):
             raise OAuthError("exchange_failed")

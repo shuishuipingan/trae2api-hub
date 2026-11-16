@@ -126,6 +126,7 @@ def test_scripts():
 # [3] Dockerfile：整目录 COPY / chmod glob / 构建期资源自检
 # ===========================================================================
 CRITICAL_ASSETS = (
+    "trae_account_types.py",
     "i18n/en.json",
     "pricing/trae_pricing.json",
     "dashboard.html",

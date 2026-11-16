@@ -61,7 +61,7 @@ __all__ = [
     "import_desktop_devices", "build_device_proof", "ec_private_key_from_pem",
     "p256_sign", "p256_verify", "fetch_activity", "generate_temp_token",
     "classify_error", "_as_mapping", "refresh_backoff_remaining",
-    "reset_refresh_backoff",
+    "reset_refresh_backoff", "is_enterprise_account", "ensure_personal_account",
 ]
 
 # ---------------------------------------------------------------------------
@@ -186,6 +186,16 @@ class UpstreamError(Exception):
                    status, payload=data)
 
 
+from trae_account_types import ENTERPRISE_UNSUPPORTED_MESSAGE, is_enterprise_account
+
+def ensure_personal_account(value):
+    """Block known enterprise identities before personal routing or transport."""
+    if is_enterprise_account(value):
+        raise UpstreamError("unsupported_enterprise_account",
+                            ENTERPRISE_UNSUPPORTED_MESSAGE, status=400)
+    return value
+
+
 # ---------------------------------------------------------------------------
 # 账号对象适配（dict / trae_accounts.Account / dataclass / 任意带字段对象）
 # ---------------------------------------------------------------------------
@@ -201,6 +211,10 @@ _ACCOUNT_ATTR_ALIASES = (
     ("realm", ("realm",)),
     ("userRegion", ("userRegion", "user_region")),
     ("account", ("account", "profile")),
+    ("extra", ("extra",)),
+    ("scope", ("scope",)),
+    ("loginScope", ("loginScope",)),
+    ("saasBootConfig", ("saasBootConfig",)),
     ("proxy", ("proxy", "egress", "proxy_own")),
     ("headersExtra", ("headersExtra", "headers_extra")),
 )
@@ -216,6 +230,7 @@ def _as_mapping(account):
     if account is None:
         return {}
     if isinstance(account, dict):
+        ensure_personal_account(account)
         return dict(account)
     merged = {}
     for name in ("to_desktop_dict", "to_dict", "as_dict"):
@@ -258,6 +273,7 @@ def _as_mapping(account):
             if value not in (None, ""):
                 merged[target] = value
                 break
+    ensure_personal_account(merged)
     return merged
 
 
@@ -290,6 +306,7 @@ def _uid(account):
 def normalize_realm(realm):
     """'cn'/'CN'/'china' -> 'cn'；其余一律 intl（双区只有两种）。"""
     raw = str(realm or "").strip().lower()
+    ensure_personal_account({"realm": raw})
     if raw in ("cn", "china", "zh", "国内", "国内版"):
         return "cn"
     if raw in ("intl", "us", "global", "sg", "国际", "国际版"):
@@ -1152,6 +1169,8 @@ def _refresh_account_request(account, timeout=30, key=None):
             raise last_exc
         raise _network_error([h + PATH_EXCHANGE_TOKEN for h in hosts], last_exc)
 
+    # Reject an unexpected tenant response before flattening away its metadata.
+    ensure_personal_account(parsed)
     result = parsed.get("Result") if isinstance(parsed, dict) else None
     if not isinstance(result, dict):
         result = parsed if isinstance(parsed, dict) else {}
@@ -2161,6 +2180,11 @@ def _accounts_from_storage(storage, entry, now, seen, errors):
         except Exception as exc:
             errors.append({"path": entry["path"], "key": key, "error": str(exc)})
             continue
+        try:
+            ensure_personal_account(body)
+        except UpstreamError as exc:
+            errors.append({"path": entry["path"], "key": key, "error": str(exc)})
+            continue
         if not isinstance(body, dict) or not _token(body):
             continue
         realm = _realm_from_body(body, entry.get("realm"))
@@ -2300,6 +2324,7 @@ def reload_desktop_auth(account, realm=None):
     body = desktop_auth_body(realm)
     if not body:
         return None
+    ensure_personal_account(body)
     token = body.get("token") or ""
     if not token:
         return None
@@ -2341,6 +2366,7 @@ def sync_desktop_auth(account, realm=None, backup=True):
             body = json.loads(body.decode("utf-8"))
         if not isinstance(body, dict):
             body = {}
+        ensure_personal_account(body)
         body["token"] = token
         if refresh:
             body["refreshToken"] = refresh

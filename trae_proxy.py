@@ -84,7 +84,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -5943,6 +5943,8 @@ def trae_auth_headers(account, realm, sse=True, extra=None):
     设备头（X-Device-*）默认不发：国际版风控成因排查已排除设备头（§11.4），
     而多发未验证的头反而可能改变风控判定。需要时用 TRAE_DEVICE_HEADERS=1 打开。
     """
+    # Do not swallow an account-type rejection and retry with embedded headers.
+    trae_accounts.ensure_personal_account(account)
     if _trae_client is not None and hasattr(_trae_client, "auth_headers"):
         try:
             headers = dict(_trae_client.auth_headers(
@@ -6139,6 +6141,8 @@ def trae_solo_chat(account, payload, timeout=180):
     the account access token plus the device identity; no SQLCipher, no AHA,
     no local Trae CN process.
     """
+    # SOLO is the consumer CN transport too; never send a tenant token here.
+    trae_accounts.ensure_personal_account(account)
     token = str(getattr(account, "token", "") or "").strip()
     if not token:
         raise RuntimeError("account access token is empty")
@@ -6262,6 +6266,7 @@ def trae_solo_chat(account, payload, timeout=180):
 
 def trae_open_chat(account, realm, body, host=None, timeout=600):
     """打开一次 llm_raw_chat（始终流式返回 SSE，协议 §六）。"""
+    trae_accounts.ensure_personal_account(account)
     realm = trae_realm(realm)
     if _trae_client is not None and hasattr(_trae_client, "open_chat") \
             and host is None:
@@ -10883,7 +10888,11 @@ class Handler(BaseHTTPRequestHandler):
             pat = payload.get("refresh_token") or payload.get("refreshToken") or payload.get("pat") or ""
             realm = payload.get("realm") or CURRENT_REALM
             if realm not in ("intl", "cn"):
-                realm = "cn"
+                return self._error(400, "refreshToken import requires a personal-account realm (cn or intl)", "invalid_request_error")
+            try:
+                trae_accounts.ensure_personal_account(payload)
+            except Exception as exc:
+                return self._error(400, str(exc), "unsupported_enterprise_account")
             # 账号域重构中：新方法 add_from_refresh 优先，旧 import_pat 兜底，
             # 两者都缺时明确 501（而不是 500 堆栈）。
             add = getattr(POOL, "add_from_refresh", None) or \
