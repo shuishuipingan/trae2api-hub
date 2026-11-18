@@ -215,6 +215,56 @@ class OAuthHTTP(unittest.TestCase):
         self.assertEqual(doc["status"], "expired")
         self.assertFalse(self.pool.accounts)
 
+    def test_personal_authorization_hides_saas_login(self):
+        start = self.start()
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(start["authorization_url"]).query)
+        self.assertEqual(query["hide_saas_login"], ["true"])
+
+    def test_enterprise_callback_is_rejected_before_exchange(self):
+        start = self.start()
+        url = self.callback(start, userInfo=json.dumps({"scope":"saas", "UserID":"untrusted", "saasBootConfig":{"apiHost":"https://tenant.invalid"}}))
+        code, doc, _ = self.request("/accounts/login/callback", {"state":start["state"], "callback_url":url}, self.token)
+        self.assertEqual(code,400)
+        self.assertEqual(doc["error"]["code"],"unsupported_enterprise_account")
+        self.assertFalse(self.calls)
+        self.assertFalse(self.pool.accounts)
+        self.assertNotIn("tenant.invalid",json.dumps(doc))
+
+    def test_enterprise_upstream_response_never_enters_personal_pool(self):
+        start = self.start()
+        original = self.pool._oauth_manager._transport
+        def transport(*args):
+            data=original(*args)
+            data["Result"]["UserInfo"]={"scope":"saas"}
+            return data
+        self.pool._oauth_manager._transport=transport
+        code, doc, _ = self.request("/accounts/login/callback", {"state":start["state"], "callback_url":self.callback(start)}, self.token)
+        self.assertEqual(code,400)
+        self.assertEqual(doc["error"]["code"],"unsupported_enterprise_account")
+        self.assertFalse(self.pool.accounts)
+        self.assertEqual(len(self.calls),1)
+
+    def test_enterprise_refresh_import_never_falls_back_to_cn(self):
+        with mock.patch.object(self.pool,"add_from_refresh",side_effect=AssertionError("network must not start")) as add:
+            code, doc, _ = self.request("/accounts/import/pat", {"realm":"enterprise", "refresh_token":"FIXTURE-ENTERPRISE-REFRESH"}, self.token)
+            self.assertEqual(code,400)
+            code, doc, _ = self.request("/accounts/import/pat", {"realm":"intl", "scope":"saas", "refresh_token":"FIXTURE-ENTERPRISE-REFRESH"}, self.token)
+            self.assertEqual(code,400)
+            self.assertEqual(doc["error"]["type"],"unsupported_enterprise_account")
+            add.assert_not_called()
+        self.assertFalse(self.pool.accounts)
+
+    def test_embedded_headers_and_solo_never_send_enterprise_token(self):
+        account={"uid":"enterprise-fixture", "token":"FIXTURE-ENTERPRISE-ACCESS", "scope":"saas"}
+        with mock.patch.object(P,"_trae_client",None), mock.patch.object(urllib.request,"urlopen",side_effect=AssertionError("unexpected network")) as opened:
+            for operation in (lambda: P.trae_auth_headers(account,"intl"),
+                              lambda: P.trae_open_chat(account,"intl",{}),
+                              lambda: P.trae_solo_chat(account,{})):
+                with self.assertRaises(Exception) as caught:
+                    operation()
+                self.assertEqual(getattr(caught.exception,"code",None),"unsupported_enterprise_account")
+            opened.assert_not_called()
+
     def test_cancel_prevents_exchange(self):
         start = self.start()
         _, doc, _ = self.request("/accounts/login/cancel", {"state":start["state"]}, self.other)
