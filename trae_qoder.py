@@ -3,7 +3,8 @@
 
 本模块只做三件事，不碰 trae_proxy 的任何既有逻辑：
 
-  1. **凭据**：从 Qoder CN 桌面端读登录态（只读，绝不写回）
+  1. **凭据**：优先使用完整环境变量；默认不读取桌面登录态。
+     仅 QODER_DESKTOP_IMPORT=1 时在 Windows 只读导入：
        %APPDATA%/com.qodercn.app.stable/Local State   -> os_crypt.encrypted_key（DPAPI）
        %APPDATA%/com.qodercn.app.stable/auth.v1.dat   -> v10 + nonce(12) + ct + tag(16)，AES-256-GCM
      机器指纹取 ~/.qoder-cn/umid-cache.json 的 info.machineCode。
@@ -18,15 +19,17 @@
 
   3. **接口**：model_list / stream_chat，输出统一成 OpenAI 词汇。
 
-依赖：只用标准库 + trae_client 的纯 Python AES（`aes_cbc_encrypt`）。
-RSA 用 pow() 手写 PKCS#1 v1.5 加密，不引入 pycryptodome——网关的零依赖是
-刻意设计，加一个 C 扩展依赖等于让 Docker 镜像和裸机部署都多一道坑。
+环境变量模式：标准库 + trae_client 的纯 Python AES（`aes_cbc_encrypt`）。
+RSA 用 pow() 实现 PKCS#1 v1.5。Windows 桌面导入还需要可选依赖
+pycryptodome（Crypto.Cipher.AES）执行 AES-GCM；非 Windows 请使用环境变量。
 
 协议事实来源：Qoder CN 桌面端 0.5.11 客户端行为 + 社区还原（dsh-connect-qoder）。
 上游随时可能改；改了这一层，聊天会回 `provider_error` 或形状漂移，不会静默出错。
 """
 
 import base64
+import copy
+import http.client
 import hashlib
 import json
 import os
@@ -91,6 +94,9 @@ ALWAYS_THINKING_KEYS = frozenset({"gmodel", "gfmodel"})
 
 MODEL_CACHE_TTL = 300          # 模型列表缓存（秒）
 REQUEST_TIMEOUT = 120          # 单次请求超时
+MAX_RESPONSE_BYTES = 1024 * 1024
+MAX_SSE_EVENT_BYTES = 1024 * 1024
+_ENV_CREDENTIALS = ("QODER_CN_TOKEN", "QODER_CN_UID", "QODER_CN_MACHINE_ID")
 
 
 # ---------------------------------------------------------------------------
@@ -147,20 +153,16 @@ def _dpapi_unprotect(blob):
 
 
 def _aes_gcm_decrypt(key, blob):
-    """v10 + nonce(12) + ct + tag(16) 的 AES-256-GCM 解密。
-
-    AES-GCM 标准库没有，这里用 trae_client 的 AES 原语拼 CTR + GHASH 太重；
-    桌面端凭据只在 Windows 上可读，而 Windows 上 Python 3.13 的 hashlib 不带
-    GCM。退路：优先用 pycryptodome（如果装了），没有就报一条明确的错。
-    """
+    """Windows 桌面导入使用可选 pycryptodome，不属于标准库路径。"""
     try:
         from Crypto.Cipher import AES as _AES
-    except Exception:                                          # noqa: BLE001
-        raise RuntimeError(
-            "解密 Qoder 凭据需要 pycryptodome（pip install pycryptodome）；"
-            "或设置 QODER_CN_TOKEN 直接给一个 dt- 令牌")
-    if blob[:3] != b"v10":
-        raise ValueError("auth.v1.dat 头不是 v10：%r" % blob[:3])
+    except ImportError:
+        raise QoderError(
+            "Qoder 桌面导入需要 pycryptodome（pip install pycryptodome）；"
+            "或设置 QODER_CN_TOKEN、QODER_CN_UID、QODER_CN_MACHINE_ID",
+            status=503, kind="credential_dependency") from None
+    if blob[:3] != b"v10" or len(blob) < 31:
+        raise ValueError("Qoder 桌面凭据格式无效")
     body = blob[3:]
     cipher = _AES.new(key, _AES.MODE_GCM, nonce=body[:12], mac_len=16)
     return cipher.decrypt_and_verify(body[12:-16], body[-16:])
@@ -169,58 +171,78 @@ def _aes_gcm_decrypt(key, blob):
 def _master_key():
     path = os.path.join(qoder_dir(), "Local State")
     with open(path, "r", encoding="utf-8") as handle:
-        state = json.load(handle)
-    raw = base64.b64decode(state["os_crypt"]["encrypted_key"])
+        state = json.loads(_read_limited(handle))
+    raw = base64.b64decode(state["os_crypt"]["encrypted_key"], validate=True)
     if raw[:5] != b"DPAPI":
-        raise ValueError("encrypted_key 前缀不是 DPAPI：%r" % raw[:5])
+        raise ValueError("Qoder 桌面密钥格式无效")
     return _dpapi_unprotect(raw[5:])
 
 
 def _machine_code():
-    try:
-        with open(umid_cache_path(), "r", encoding="utf-8") as handle:
-            cache = json.load(handle)
-        code = (cache.get("info") or {}).get("machineCode")
-        if code:
-            return str(code)
-    except (OSError, ValueError):
-        pass
-    return ""
+    with open(umid_cache_path(), "r", encoding="utf-8") as handle:
+        cache = json.loads(_read_limited(handle))
+    code = (cache.get("info") or {}).get("machineCode")
+    return str(code).strip() if code else ""
+
+
+def _validate_credential(cred):
+    if not isinstance(cred, dict) or any(
+            not isinstance(cred.get(key), str) or not cred[key].strip()
+            for key in ("token", "userID", "machineID")):
+        raise QoderError(
+            "Qoder 凭据不完整：请设置 QODER_CN_TOKEN、QODER_CN_UID、QODER_CN_MACHINE_ID",
+            status=401, kind="no_credential")
+    if any(isinstance(value, str) and any(char in value for char in ("\r", "\n", "\x00"))
+           for value in cred.values()):
+        raise QoderError("Qoder 凭据包含无效控制字符", 401, "no_credential")
+    return cred
 
 
 def load_credential():
-    """读 Qoder CN 登录态。返回 dict，失败抛异常（由调用方决定怎么报）。
+    """完整 env 优先；任一认证变量存在即 env 模式，禁止混用个人缓存。
 
-    优先级：
-      1. 环境变量 QODER_CN_TOKEN（容器/无桌面端部署的唯一可行路径）
-      2. 桌面端 auth.v1.dat
+    默认不读桌面；QODER_DESKTOP_IMPORT=1 显式启用 Windows DPAPI/GCM 导入。
+    非 Windows 使用 QODER_CN_TOKEN / QODER_CN_UID / QODER_CN_MACHINE_ID。
     """
-    token = (os.environ.get("QODER_CN_TOKEN") or "").strip()
-    uid = (os.environ.get("QODER_CN_UID") or "").strip()
-    if token:
-        return {
-            "userID": uid,
-            "token": token,
+    if any(key in os.environ for key in _ENV_CREDENTIALS):
+        return _validate_credential({
+            "token": (os.environ.get("QODER_CN_TOKEN") or "").strip(),
+            "userID": (os.environ.get("QODER_CN_UID") or "").strip(),
+            "machineID": (os.environ.get("QODER_CN_MACHINE_ID") or "").strip(),
             "name": os.environ.get("QODER_CN_NAME") or "",
             "email": os.environ.get("QODER_CN_EMAIL") or "",
-            "machineID": os.environ.get("QODER_CN_MACHINE_ID") or _machine_code(),
             "source": "env",
-        }
-
-    key = _master_key()
-    with open(os.path.join(qoder_dir(), "auth.v1.dat"), "rb") as handle:
-        blob = handle.read()
-    auth = json.loads(_aes_gcm_decrypt(key, blob).decode("utf-8"))
-    user = auth.get("user") or {}
-    return {
-        "userID": user.get("id") or "",
-        "token": auth.get("token") or "",
-        "name": user.get("name") or "",
-        "email": user.get("email") or "",
-        "machineID": _machine_code(),
-        "source": "desktop",
-        "expiresAt": auth.get("expiresAt") or "",
-    }
+        })
+    if os.environ.get("QODER_DESKTOP_IMPORT") != "1":
+        raise QoderError(
+            "Qoder 桌面导入默认关闭；请设置 QODER_CN_TOKEN、QODER_CN_UID、QODER_CN_MACHINE_ID，"
+            "或在 Windows 设置 QODER_DESKTOP_IMPORT=1",
+            status=401, kind="no_credential")
+    if sys.platform != "win32":
+        raise QoderError(
+            "Qoder 桌面导入仅支持 Windows；请设置 QODER_CN_TOKEN、QODER_CN_UID、QODER_CN_MACHINE_ID",
+            status=401, kind="no_credential")
+    try:
+        key = _master_key()
+        with open(os.path.join(qoder_dir(), "auth.v1.dat"), "rb") as handle:
+            blob = _read_limited(handle)
+        auth = json.loads(_aes_gcm_decrypt(key, blob).decode("utf-8"))
+        user = auth.get("user") or {}
+        return _validate_credential({
+            "userID": str(user.get("id") or "").strip(),
+            "token": auth.get("token") or "",
+            "name": user.get("name") or "",
+            "email": user.get("email") or "",
+            "machineID": _machine_code(),
+            "source": "desktop",
+            "expiresAt": auth.get("expiresAt") or "",
+        })
+    except QoderError as exc:
+        if exc.kind in ("credential_dependency", "no_credential"):
+            raise
+        raise QoderError("Qoder 桌面凭据读取或解密失败", 401, "credential_import") from None
+    except Exception:
+        raise QoderError("Qoder 桌面凭据读取或解密失败", 401, "credential_import") from None
 
 
 def credential_available():
@@ -443,7 +465,38 @@ class QoderError(Exception):
         self.kind = kind
 
 
+def _close_response(response):
+    try:
+        response.close()
+    except Exception:
+        pass
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """签名及身份头不转发到重定向目的地；同主机重定向也拒绝。"""
+
+    def http_response(self, request, response):
+        if 300 <= response.code < 400:
+            _close_response(response)
+            raise QoderError("Qoder 上游重定向已拒绝", 502, "upstream_redirect")
+        return response
+
+    https_response = http_response
+
+    def redirect_request(self, request, response, code, message, headers, newurl):
+        _close_response(response)
+        raise QoderError("Qoder 上游重定向已拒绝", 502, "upstream_redirect")
+
+
+def _read_limited(handle):
+    data = handle.read(MAX_RESPONSE_BYTES + 1)
+    if len(data) > MAX_RESPONSE_BYTES:
+        raise QoderError("Qoder 响应超过大小限制", 502, "protocol_shape")
+    return data
+
+
 def _open(url, cred, body=None, extra_headers=None, timeout=None, method=None):
+    _validate_credential(cred)
     raw = b"" if body is None else json.dumps(
         body, separators=(",", ":")).encode("utf-8")
     # Encode=1 的接口：请求体要按置换字母表编码后再签名（签名覆盖的是编码后
@@ -466,25 +519,24 @@ def _open(url, cred, body=None, extra_headers=None, timeout=None, method=None):
         method=method or ("POST" if body is not None else "GET"),
     )
     try:
-        return urllib.request.urlopen(request, timeout=timeout or REQUEST_TIMEOUT)
+        opener = urllib.request.build_opener(_NoRedirect())
+        return opener.open(request, timeout=timeout or REQUEST_TIMEOUT)
     except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = exc.read().decode("utf-8", "replace")[:500]
-        except Exception:                                      # noqa: BLE001
-            pass
-        raise QoderError("Qoder HTTP %s: %s" % (exc.code, detail),
-                         status=exc.code, kind="upstream_http")
-    except urllib.error.URLError as exc:
-        raise QoderError("Qoder 网络不可达: %s" % exc.reason,
-                         status=502, kind="network")
+        _close_response(exc)
+        if isinstance(exc.code, int) and 300 <= exc.code < 400:
+            raise QoderError("Qoder 上游重定向已拒绝", 502, "upstream_redirect") from None
+        status = exc.code if isinstance(exc.code, int) and 400 <= exc.code <= 599 else 502
+        raise QoderError("Qoder 上游 HTTP 请求失败", status, "upstream_http") from None
+    except (urllib.error.URLError, OSError, http.client.HTTPException):
+        raise QoderError("Qoder 网络连接失败", 502, "network") from None
 
 
 # ---------------------------------------------------------------------------
 # 模型目录
 # ---------------------------------------------------------------------------
 
-_MODEL_CACHE = {"at": 0.0, "rows": None}
+_MODEL_CACHE = {}  # sha256(完整认证身份) -> {at, rows}；不保存原始 token
+_MODEL_CACHE_GENERATION = 0
 _MODEL_LOCK = threading.Lock()
 
 
@@ -543,55 +595,63 @@ def normalize_model(item):
     }
 
 
+def _credential_fingerprint(cred):
+    identity = [cred[key] for key in ("token", "userID", "machineID")]
+    return hashlib.sha256(json.dumps(identity, ensure_ascii=True).encode("utf-8")).hexdigest()
+
+
 def model_list(cred=None, refresh=False, timeout=None):
-    """拉 Qoder 模型目录，返回统一行形状的 list。带 5 分钟缓存。"""
+    """凭据指纹隔离的模型目录；失败不回退到其它账号的缓存。"""
+    cred = dict(_validate_credential(load_credential() if cred is None else cred))
+    fingerprint = _credential_fingerprint(cred)
     with _MODEL_LOCK:
-        cached = _MODEL_CACHE.get("rows")
-        if (not refresh and cached is not None
-                and time.time() - _MODEL_CACHE["at"] < MODEL_CACHE_TTL):
-            return cached
-
-    cred = cred or load_credential()
-    if not cred.get("token"):
-        raise QoderError("Qoder 凭据缺失", status=401, kind="no_credential")
-
+        generation = _MODEL_CACHE_GENERATION
+        cached = _MODEL_CACHE.get(fingerprint)
+        if not refresh and cached and time.monotonic() - cached["at"] < MODEL_CACHE_TTL:
+            return copy.deepcopy(cached["rows"])
     response = _open(GATEWAY_BASE + PATH_MODEL_LIST, cred, body=None,
                      timeout=timeout or 30)
     try:
-        raw = response.read()
+        raw = _read_limited(response)
+        payload = json.loads(raw)
+    except QoderError:
+        raise
+    except (OSError, http.client.HTTPException):
+        raise QoderError("Qoder 网络读取失败", 502, "network") from None
+    except (ValueError, UnicodeError, RecursionError):
+        raise QoderError("Qoder 模型目录不是合法 JSON", 502, "protocol_shape") from None
     finally:
-        response.close()
-    try:
-        payload = json.loads(raw.decode("utf-8", "replace"))
-    except ValueError:
-        raise QoderError("Qoder 模型目录不是合法 JSON", status=502,
-                         kind="protocol_shape")
-
+        _close_response(response)
+    if not isinstance(payload, dict):
+        raise QoderError("Qoder 模型目录格式无效", 502, "protocol_shape")
+    if _failure_of(payload):
+        raise QoderError("Qoder 上游请求失败", 502, "provider_error")
     groups = payload.get("chat")
     if not isinstance(groups, list):
-        # 分组改名/缺失属于"协议形状变了"，不是"没有模型"——两者要分开报，
-        # 否则账号被收窄会被误读成接口坏掉。
-        raise QoderError("Qoder 模型目录缺少 chat 分组（协议形状可能已变）",
-                         status=502, kind="protocol_shape")
-
+        raise QoderError("Qoder 模型目录缺少 chat 分组", 502, "protocol_shape")
     rows = []
     for item in groups:
-        if not isinstance(item, dict):
-            continue
-        row = normalize_model(item)
-        if row:
-            rows.append(row)
-
+        if isinstance(item, dict):
+            row = normalize_model(item)
+            if row:
+                rows.append(row)
     with _MODEL_LOCK:
-        _MODEL_CACHE["at"] = time.time()
-        _MODEL_CACHE["rows"] = rows
+        if generation == _MODEL_CACHE_GENERATION:
+            now = time.monotonic()
+            for key in list(_MODEL_CACHE):
+                if now - _MODEL_CACHE[key]["at"] >= MODEL_CACHE_TTL:
+                    del _MODEL_CACHE[key]
+            if len(_MODEL_CACHE) >= 32 and fingerprint not in _MODEL_CACHE:
+                del _MODEL_CACHE[min(_MODEL_CACHE, key=lambda key: _MODEL_CACHE[key]["at"])]
+            _MODEL_CACHE[fingerprint] = {"at": now, "rows": copy.deepcopy(rows)}
     return rows
 
 
 def invalidate_models():
+    global _MODEL_CACHE_GENERATION
     with _MODEL_LOCK:
-        _MODEL_CACHE["at"] = 0.0
-        _MODEL_CACHE["rows"] = None
+        _MODEL_CACHE.clear()
+        _MODEL_CACHE_GENERATION += 1
 
 
 def model_keys():
@@ -704,177 +764,255 @@ def build_chat_body(model_key, messages, request=None):
     }
 
 
+def _protocol_error():
+    return QoderError("Qoder 流响应格式无效", 502, "protocol_shape")
+
+
+def _strict_json(text):
+    def reject_constant(_value):
+        raise ValueError("non-finite JSON")
+    return json.loads(text, parse_constant=reject_constant)
+
+
 def _unwrap_envelope(payload_text):
-    """双层 SSE：信封对象，body 字段本身又是 JSON 字符串。"""
+    """严格解开双层 JSON；错误信封不能被 body 遮蔽。"""
     try:
-        envelope = json.loads(payload_text)
-    except ValueError:
-        return None
-    if not isinstance(envelope, dict):
-        return None
-    inner = envelope.get("body")
-    if isinstance(inner, str):
-        try:
-            return json.loads(inner)
-        except ValueError:
-            return None
-    if isinstance(inner, dict):
+        envelope = _strict_json(payload_text)
+        if not isinstance(envelope, dict):
+            raise ValueError("envelope")
+        if _failure_of(envelope):
+            raise QoderError("Qoder 上游请求失败", 502, "provider_error")
+        if "body" not in envelope:
+            return envelope
+        inner = envelope["body"]
+        if isinstance(inner, str):
+            inner = _strict_json(inner)
+        if not isinstance(inner, dict):
+            raise ValueError("body")
         return inner
-    return envelope
+    except (ValueError, TypeError, RecursionError):
+        raise _protocol_error() from None
 
 
 def _failure_of(chunk):
-    """把错误帧拆成 (code, message)。非错误返回 None。
-
-    Qoder 把真正的错误码嵌在 message 字符串里的 JSON 中，只读第一层会得到
-    一个没有信息量的 provider_error。这里往下走两层。
-    """
+    """仅判断错误标志；上游 code/message/details 永不放入公开消息。"""
     if not isinstance(chunk, dict):
-        return None
-    code = chunk.get("code") or chunk.get("errorCode")
-    message = chunk.get("message") or chunk.get("errorMessage")
+        return False
+    code = chunk.get("code", chunk.get("errorCode"))
+    if code not in (None, "", 0, "0") or chunk.get("error") or chunk.get("success") is False:
+        return True
     details = chunk.get("details")
     if isinstance(details, str):
         try:
-            nested = json.loads(details)
+            details = json.loads(details)
         except ValueError:
-            nested = None
-        if isinstance(nested, dict):
-            error = nested.get("error")
-            if isinstance(error, dict):
-                inner_code = error.get("code")
-                inner_msg = error.get("message")
-                if inner_code:
-                    code = inner_code
-                if inner_msg:
-                    message = inner_msg
-    if code is None and not message:
-        return None
-    return (str(code or ""), str(message or ""))
+            details = None
+    return isinstance(details, dict) and bool(details.get("error"))
+
+
+def _sse_events(response):
+    """按空行分隔事件，支持多行 data；行及事件均有大小上限。"""
+    data = []
+    size = 0
+    while True:
+        raw_line = response.readline(MAX_SSE_EVENT_BYTES + 1)
+        if not raw_line:
+            if data:
+                raise QoderError("Qoder 流响应意外中断", 502, "incomplete_stream")
+            return
+        size += len(raw_line)
+        if len(raw_line) > MAX_SSE_EVENT_BYTES or size > MAX_SSE_EVENT_BYTES:
+            raise QoderError("Qoder 流事件超过大小限制", 502, "protocol_shape")
+        try:
+            line = raw_line.decode("utf-8").rstrip("\r\n")
+        except UnicodeError:
+            raise _protocol_error() from None
+        if line == "":
+            if data:
+                yield "\n".join(data)
+            data = []
+            size = 0
+        elif line.startswith(":"):
+            continue
+        else:
+            field, sep, value = line.partition(":")
+            if value.startswith(" "):
+                value = value[1:]
+            if field == "data":
+                data.append(value if sep else "")
+            elif field not in ("event", "id", "retry"):
+                raise _protocol_error()
 
 
 def stream_chat(model_key, messages, request=None, timeout=None):
-    """发一次流式对话，逐帧产出 OpenAI 形状的 chunk dict。
-
-    产出的是 `{"choices":[{"delta":{...},"finish_reason":...}]}` 或带 usage 的帧，
-    与 /v1/chat/completions 的流式格式一致，调用方可以直接转发。
-    """
-    cred = load_credential()
-    if not cred.get("token"):
-        raise QoderError("Qoder 凭据缺失", status=401, kind="no_credential")
-
+    """透明转发 delta；必须有 choice 且观察到 finish_reason 或 [DONE] 才成功。"""
+    cred = _validate_credential(load_credential())
     body = build_chat_body(model_key, messages, request)
     response = _open(
         GATEWAY_BASE + PATH_CHAT, cred, body=body,
-        extra_headers={
-            "Accept": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "X-Model-Key": model_key,
-            "X-Model-Source": "system",
-        },
-        timeout=timeout,
-    )
-
-    content_type = (response.headers.get("Content-Type") or "").lower()
-    if "json" in content_type or "html" in content_type:
-        # 200 但不是 SSE：多半是鉴权页/错误文档，说清楚比空回更省排查时间
-        try:
-            text = response.read().decode("utf-8", "replace")[:400]
-        finally:
-            response.close()
-        raise QoderError("Qoder 回了 %s 而不是 SSE：%s" % (content_type, text),
-                         status=502, kind="protocol_shape")
-
+        extra_headers={"Accept": "text/event-stream", "Cache-Control": "no-cache",
+                       "X-Model-Key": model_key, "X-Model-Source": "system"},
+        timeout=timeout)
     created = int(time.time())
     finish_reason = None
     usage = None
+    seen_choice = False
+    seen_payload = False
+    calls = {}
+    done = False
     try:
-        for raw_line in response:
-            line = raw_line.decode("utf-8", "replace").strip()
-            if not line or not line.startswith("data:"):
-                continue
-            payload_text = line[5:].strip()
-            if not payload_text or payload_text == "[DONE]":
-                if payload_text == "[DONE]":
-                    break
-                continue
-
+        content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if content_type != "text/event-stream":
+            raise QoderError("Qoder 上游未返回 SSE 响应", 502, "protocol_shape")
+        for payload_text in _sse_events(response):
+            if payload_text == "[DONE]":
+                done = True
+                break
             chunk = _unwrap_envelope(payload_text)
-            if chunk is None:
-                continue
-
-            failure = _failure_of(chunk)
-            if failure is not None and failure[0] not in ("", "0"):
-                code, message = failure
-                status = 429 if "limit" in message.lower() else 502
-                raise QoderError("Qoder 上游错误 %s: %s" % (code, message),
-                                 status=status, kind="provider_error")
-
-            if isinstance(chunk.get("usage"), dict):
+            if _failure_of(chunk):
+                raise QoderError("Qoder 上游请求失败", 502, "provider_error")
+            if "usage" in chunk and chunk["usage"] is not None:
+                if not isinstance(chunk["usage"], dict):
+                    raise _protocol_error()
                 usage = chunk["usage"]
-
             choices = chunk.get("choices")
-            if not isinstance(choices, list) or not choices:
+            if choices == [] and isinstance(chunk.get("usage"), dict):
                 continue
-            first = choices[0] if isinstance(choices[0], dict) else {}
+            if not isinstance(choices, list) or len(choices) != 1:
+                raise _protocol_error()
+            first = choices[0]
+            if not isinstance(first, dict) or first.get("index", 0) != 0:
+                raise _protocol_error()
             delta = first.get("delta")
-            if not isinstance(delta, dict):
+            if delta is None:
                 delta = {}
-            if first.get("finish_reason"):
-                finish_reason = first["finish_reason"]
-            if delta.get("content") or delta.get("reasoning_content") \
-                    or delta.get("tool_calls"):
-                yield {
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": model_key,
-                    "choices": [{"index": 0, "delta": delta,
-                                 "finish_reason": None}],
-                }
+            if not isinstance(delta, dict):
+                raise _protocol_error()
+            for key in ("content", "reasoning_content"):
+                if delta.get(key) is not None and not isinstance(delta[key], str):
+                    raise _protocol_error()
+            if "tool_calls" in delta:
+                _merge_tool_delta(calls, delta["tool_calls"])
+            reason = first.get("finish_reason")
+            if reason is not None and reason not in ("stop", "length", "tool_calls", "content_filter", "function_call"):
+                raise _protocol_error()
+            if finish_reason is not None and (delta or reason not in (None, finish_reason)):
+                raise _protocol_error()
+            seen_choice = True
+            if delta.get("content") or delta.get("reasoning_content") or delta.get("tool_calls"):
+                seen_payload = True
+            if reason is not None:
+                finish_reason = reason
+            if delta:
+                yield {"object": "chat.completion.chunk", "created": created,
+                       "model": model_key,
+                       "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
+        if not seen_choice or (not seen_payload and finish_reason is None):
+            raise QoderError("Qoder 流响应为空", 502, "empty_stream")
+        if not done and finish_reason is None:
+            raise QoderError("Qoder 流响应意外中断", 502, "incomplete_stream")
+        # 流式也验证聚合结果，防止 malformed 工具流被代理计为成功。
+        # length/content_filter 保留真实终态，不补齐参数或伪造 tool_calls 终态。
+        if finish_reason == "tool_calls":
+            if not calls:
+                raise _protocol_error()
+            _validated_tool_calls(calls)
+        elif calls and finish_reason not in ("length", "content_filter"):
+            raise _protocol_error()
+    except (OSError, http.client.HTTPException):
+        raise QoderError("Qoder 网络读取失败", 502, "network") from None
     finally:
-        try:
-            response.close()
-        except Exception:                                      # noqa: BLE001
-            pass
-
-    tail = {"object": "chat.completion.chunk", "created": created,
-            "model": model_key,
-            "choices": [{"index": 0, "delta": {},
-                         "finish_reason": finish_reason or "stop"}]}
-    if usage:
+        _close_response(response)
+    tail = {"object": "chat.completion.chunk", "created": created, "model": model_key,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason or "stop"}]}
+    if usage is not None:
         tail["usage"] = usage
     yield tail
 
 
-def complete_chat(model_key, messages, request=None, timeout=None):
-    """非流式：把 stream_chat 收成一条完整回答。"""
-    parts = []
-    reasoning = []
-    finish_reason = "stop"
-    usage = None
-    for chunk in stream_chat(model_key, messages, request, timeout=timeout):
-        if chunk.get("usage"):
-            usage = chunk["usage"]
-        for choice in chunk.get("choices") or []:
-            delta = choice.get("delta") or {}
-            if delta.get("content"):
-                parts.append(delta["content"])
-            if delta.get("reasoning_content"):
-                reasoning.append(delta["reasoning_content"])
-            if choice.get("finish_reason"):
-                finish_reason = choice["finish_reason"]
+def _merge_tool_delta(calls, fragments):
+    if not isinstance(fragments, list):
+        raise _protocol_error()
+    for fragment in fragments:
+        if not isinstance(fragment, dict):
+            raise _protocol_error()
+        index = fragment.get("index")
+        if type(index) is not int or index < 0:
+            raise _protocol_error()
+        call = calls.setdefault(index, {"id": "", "type": "function",
+                                        "function": {"name": "", "arguments": ""}})
+        if fragment.get("type", "function") != "function":
+            raise _protocol_error()
+        if "id" in fragment:
+            if not isinstance(fragment["id"], str):
+                raise _protocol_error()
+            call["id"] += fragment["id"]
+        function = fragment.get("function", {})
+        if not isinstance(function, dict):
+            raise _protocol_error()
+        for key in ("name", "arguments"):
+            if key in function:
+                if not isinstance(function[key], str):
+                    raise _protocol_error()
+                call["function"][key] += function[key]
 
+
+def _validated_tool_calls(calls):
+    ordered = [calls[index] for index in sorted(calls)]
+    ids = set()
+    for call in ordered:
+        function = call["function"]
+        if not call["id"].strip() or not function["name"].strip() or call["id"] in ids:
+            raise _protocol_error()
+        ids.add(call["id"])
+        try:
+            arguments = _strict_json(function["arguments"])
+        except (ValueError, TypeError, RecursionError):
+            raise QoderError("Qoder 工具参数不是完整 JSON 对象", 502, "protocol_shape") from None
+        if not isinstance(arguments, dict):
+            raise QoderError("Qoder 工具参数不是完整 JSON 对象", 502, "protocol_shape")
+    return ordered
+
+
+def complete_chat(model_key, messages, request=None, timeout=None):
+    """按工具 index 聚合分片；截断/过滤的工具不暴露为可执行 tool_calls。"""
+    parts, reasoning, calls = [], [], {}
+    finish_reason = None
+    usage = None
+    stream = stream_chat(model_key, messages, request, timeout=timeout)
+    try:
+        for chunk in stream:
+            if chunk.get("usage") is not None:
+                usage = chunk["usage"]
+            for choice in chunk.get("choices") or []:
+                delta = choice.get("delta") or {}
+                if delta.get("content"):
+                    parts.append(delta["content"])
+                if delta.get("reasoning_content"):
+                    reasoning.append(delta["reasoning_content"])
+                if "tool_calls" in delta:
+                    _merge_tool_delta(calls, delta["tool_calls"])
+                if choice.get("finish_reason") is not None:
+                    finish_reason = choice["finish_reason"]
+    finally:
+        if hasattr(stream, "close"):
+            _close_response(stream)
+    if finish_reason is None:
+        raise QoderError("Qoder 流响应意外中断", 502, "incomplete_stream")
     message = {"role": "assistant", "content": "".join(parts)}
     if reasoning:
         message["reasoning_content"] = "".join(reasoning)
-    result = {
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": model_key,
-        "choices": [{"index": 0, "message": message,
-                     "finish_reason": finish_reason}],
-    }
-    if usage:
+    if finish_reason == "tool_calls":
+        if not calls:
+            raise _protocol_error()
+        message["tool_calls"] = _validated_tool_calls(calls)
+        if not parts:
+            message["content"] = None
+    elif calls and finish_reason not in ("length", "content_filter"):
+        raise _protocol_error()
+    result = {"object": "chat.completion", "created": int(time.time()), "model": model_key,
+              "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}]}
+    if usage is not None:
         result["usage"] = usage
     return result
 

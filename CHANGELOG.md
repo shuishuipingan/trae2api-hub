@@ -1,34 +1,23 @@
-## [Unreleased]
+## [1.7.0] - 2026-11-18
 
-### ✨ 新增功能
+### 新增
 
-#### Qoder CN 作为第三个上游通道
+- 合并经修复复审的 Qoder CN 第三上游（PR #8），仅通过显式 `qoder/<key>` 路由 Chat Completions，不抢占既有 Trae 模型。目录支持单区/合并视图，遵守 Key 与模型策略；Responses / Messages 明确返回不支持。
+- 默认无配置时不读取桌面状态、不访问新上游。env 模式要求 TOKEN / UID / MACHINE_ID 三项完整；Windows 桌面只读导入须显式 QODER_DESKTOP_IMPORT=1，AES-GCM 路径额外需要可选 pycryptodome，核心 env 协议仍仅用标准库。
 
-- 新增 `trae_qoder.py`：把 Qoder CN 接进同一套 `/v1/chat/completions`，与 Trae 的
-  raw_chat / SOLO 两条通道并列。模型 id 带 `qoder/` 前缀（如 `qoder/gmodel`），
-  避免与 Trae 同名的 GLM-5.3 / Kimi-K3 混淆。
-- `/v1/models` 在凭据可读时追加 Qoder 的 12 个 chat 模型；响应里多一个 `qoder_count`。
-- 协议层复现三套机制：COSY 签名头（MD5 over payload/RSA 包裹的 AES key/时间戳/body/签名路径）、
-  `Encode=1` 的置换 base64 请求体、双层包裹 SSE（信封的 `body` 字段本身是 JSON 字符串）。
-- 加密只依赖标准库：AES 复用 `trae_client.aes_cbc_encrypt`（纯 Python），
-  RSA PKCS#1 v1.5 用 `pow()` 实现——**不引入 pycryptodome**，零依赖设计不变。
+### 修复
 
-#### 凭据与降级
+- 接入统一模型封禁、Key 白名单、CN 出口约束、日配额与本地上下文预算；禁用开关覆盖显式请求，不因禁用或失败回落 Trae。
+- 修复通用 Key 日配额读取10秒看板缓存导致连续请求超限仍放行：配额判断改为读取最新本地用量。
+- 规范 Qoder 成功/错误记账为 canonical model + provider + CN realm + key/request id；保留真实流式用量，失败不再计成功。
+- 流式首帧前错误保留 HTTP 状态，截断/空/非法 SSE 明确失败，客户端断连关闭上游；聚合分片工具调用并验证完整参数，截断不伪造可执行调用。
+- 限制上游响应大小、脱敏错误，模型缓存按凭据指纹隔离；移除 fork 专用同步脚本，补 CI 与镜像资源自检。
 
-- 默认只读 Qoder CN 桌面端登录态（`%APPDATA%/com.qodercn.app.stable` 的
-  `Local State` + `auth.v1.dat`），绝不写回。
-- 环境变量覆盖：`QODER_CN_TOKEN` / `QODER_CN_UID` / `QODER_CN_MACHINE_ID` /
-  `QODER_CN_DATA_DIR` / `QODER_CN_UMID_CACHE`，供容器或无桌面端部署使用。
-- `QODER_DISABLE=1` 整体关闭；凭据读不到时 `credential_available()` 返回 False，
-  `/v1/models` 不列 Qoder 行，Trae 侧功能完全不受影响。
+### 验证与边界
 
-### 📝 说明
+- 新增适配器与真实本地 HTTP 隔离回归；不读取真实账号、不访问实际提供方。上游实时模型可用性以配置账号目录为准，不宣称已做真实账号端到端登录。
+- #9 企业版仍缺少实际数据，继续保持开放；本版不虚构 Enterprise/SaaS 支持，保留 v1.6.1 的个人协议隔离。
 
-- 上游模型目录是 **GET** 不是 POST；发 POST 回 `Request method 'POST' not supported`。
-- chat 请求体**不能带 `business` 块**，带上回 `1210 API 调用参数有误`。
-- `enable_thinking: false` 会让 GLM-5.3 / GLM-5.3-Flash 回 1210（实测 `{}` 与
-  `{enable_thinking: true}` 均正常），因此这两条被列入 `ALWAYS_THINKING_KEYS`，
-  对它们省略该字段、由上游用默认档位。
 ## [1.6.1] - 2026-11-16
 
 ### 问题修复与支持范围

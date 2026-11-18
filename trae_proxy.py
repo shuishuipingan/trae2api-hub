@@ -85,7 +85,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.6.1"
+VERSION = "1.7.0"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -361,6 +361,8 @@ def exclusive_realm(model_id):
     if not model_id:
         return ""
     m = str(model_id).lower()
+    if m.startswith("qoder/"):
+        return "cn"
     resolved = trae_catalog.resolve_upstream_key(model_id).lower()
     for cand in (resolved, m):
         if cand in INTL_EXCLUSIVE or cand.startswith(INTL_EXCLUSIVE_PREFIXES):
@@ -842,7 +844,7 @@ def pool_account(pool, uid):
 def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
                  gen_ms=None, fp=None, account=None, effort=None,
                  effort_requested=None, key_id=None, realm_reason=None,
-                 request_id=None):
+                 request_id=None, provider=None, realm=None):
     """Accumulate stats, append a JSONL row, and persist the summary.
 
     P1-3（推理档位审计 + key 归属）：后三个参数都是**可选**的，旧调用路径不传
@@ -932,6 +934,10 @@ def record_usage(model, usage, stream=None, elapsed_ms=None, ttft_ms=None,
         row["realm"] = getattr(acc, "realm", None) or CURRENT_REALM
     except Exception:
         row["realm"] = CURRENT_REALM
+    if provider:
+        row["provider"] = str(provider)
+    if realm in ("cn", "intl"):
+        row["realm"] = realm
     # 缺失行 fields 可能为空 dict：一律 .get，避免 KeyError 把记账打断。
     _completion = fields.get("completion_tokens", 0) or 0
     _prompt = fields.get("prompt_tokens", 0) or 0
@@ -1022,7 +1028,7 @@ def _persist_usage(row, summary, fail_label):
 
 def record_error(model, status, message, elapsed_ms=None, stream=None,
                  account=None, key_id=None, fp=None, request_id=None,
-                 **kwargs):
+                 provider=None, realm=None, **kwargs):
     """Count a failed request and append it to the log so errors are visible.
 
     可选字段与 record_usage 对齐（stream / account / key_id / fp /
@@ -1053,6 +1059,10 @@ def record_error(model, status, message, elapsed_ms=None, stream=None,
         row["request_id"] = str(request_id)[:200]
     if fp:
         row.update(fp)
+    if provider:
+        row["provider"] = str(provider)
+    if realm in ("cn", "intl"):
+        row["realm"] = realm
     with _lock:
         _usage["errors"] += 1
         if elapsed_ms is not None:
@@ -2974,6 +2984,12 @@ def qoder_enabled():
     """Qoder 通道是否可用：凭据能读到才算。环境变量可强制关闭。"""
     if os.environ.get("QODER_DISABLE") == "1":
         return False
+    env_keys = ("QODER_CN_TOKEN", "QODER_CN_UID", "QODER_CN_MACHINE_ID")
+    if any(key in os.environ for key in env_keys):
+        if not all(str(os.environ.get(key) or "").strip() for key in env_keys):
+            return False
+    elif os.environ.get("QODER_DESKTOP_IMPORT") != "1":
+        return False
     try:
         return trae_qoder.credential_available()
     except Exception:                                          # noqa: BLE001
@@ -2992,7 +3008,7 @@ def qoder_model_entries():
     try:
         rows = trae_qoder.model_list()
     except Exception as exc:                                   # noqa: BLE001
-        log("qoder model list failed: %s" % str(exc)[:160],
+        log("qoder model list unavailable (%s)" % type(exc).__name__,
             level="WARN", tag="models")
         return []
 
@@ -3013,7 +3029,7 @@ def qoder_model_entries():
             "created": created,
             "owned_by": "qoder",
             "provider": "qoder",
-            "realm": "qoder",
+            "realm": "cn",
             "upstream_key": key,
             "name": display,
             "display_name": display,
@@ -3023,8 +3039,8 @@ def qoder_model_entries():
             "context_window": row.get("context_window"),
             "thinking": row.get("thinking"),
             "consumption_rate": row.get("consumption_rate"),
-            # 客户端可以用 id（带前缀）或裸 key，两条都写进 aliases
-            "aliases": [QODER_PREFIX + key, key, display],
+            "protocols": ["chat_completions"],
+            "aliases": [QODER_PREFIX + key],
         }
         if row.get("is_default"):
             item["is_default"] = True
@@ -3033,32 +3049,13 @@ def qoder_model_entries():
 
 
 def qoder_model_name(model):
-    """客户端给的名字 -> Qoder 上游 key。不是 Qoder 的模型返回 None。
-
-    认三种写法：`qoder/gmodel`（/v1/models 里的 id）、`gmodel`（裸 key）、
-    `GLM-5.3`（显示名）。裸名优先给 Qoder 只在**唯一命中**时才用，
-    否则同名模型（GLM-5.3）会被 Trae 的请求误路由到 Qoder。
-    """
+    """Only the explicit provider namespace selects Qoder; never probe on Trae traffic."""
     raw = str(model or "").strip()
-    if not raw:
+    if not raw.startswith(QODER_PREFIX):
         return None
-    if raw.lower().startswith(QODER_PREFIX):
-        return trae_qoder.resolve_model(raw[len(QODER_PREFIX):]) or \
-            raw[len(QODER_PREFIX):]
-    if not qoder_enabled():
-        return None
-    try:
-        rows = trae_qoder.model_list()
-    except Exception:                                          # noqa: BLE001
-        return None
-    lowered = raw.lower()
-    for row in rows:
-        if lowered == str(row.get("key") or "").lower():
-            return row["key"]
-    for row in rows:
-        if lowered == str(row.get("display_name") or "").lower():
-            return row["key"]
-    return None
+    # Keep detection separate from enablement: disabled providers must not fall
+    # through into the consumer Trae transport.
+    return raw[len(QODER_PREFIX):]
 
 
 def fetch_models(realm=None, refresh=False):
@@ -4110,6 +4107,8 @@ def catalog_meta_for(model_key, realm=None):
     Anthropic 入口在调用 trae_anthropic.messages_to_chat 时需要一个 meta，
     否则 effort_from_anthropic 取不到 supported 档位表 -> 思考档位被静默丢弃。
     """
+    if str(model_key or "").startswith("qoder/"):
+        return {}  # Provider metadata must never alias a consumer Trae key.
     model_key = trae_catalog.resolve_upstream_key(model_key, realm=realm or CURRENT_REALM)
     for m in trae_catalog.models_for_realm(realm or CURRENT_REALM):
         if m.get("key") == model_key:
@@ -9500,7 +9499,7 @@ class Handler(BaseHTTPRequestHandler):
     def _key_quota_error(self):
         """P1-5：每 Key 当日请求/Token 配额（0 = 不限制）。
 
-        只读本地 usage 行（10s 缓存），不触发上游；面板会话/未带 key 不受限。
+        只读本地 usage 行；配额决策禁用看板 TTL 缓存，不触发上游。
         当前请求尚未记账，因此 used >= limit 就拒绝。
         """
         entry = getattr(self, "key_entry", None) or {}
@@ -9513,7 +9512,7 @@ class Handler(BaseHTTPRequestHandler):
             return ""
         used_req = used_tok = 0
         try:
-            for row in usage_by_key(range="today"):
+            for row in usage_by_key(ttl=0, range="today"):
                 if row.get("key_id") == kid:
                     used_req = int(row.get("requests") or 0)
                     used_tok = int(row.get("total_tokens") or 0)
@@ -10100,12 +10099,15 @@ class Handler(BaseHTTPRequestHandler):
                 merged = fetch_models_merged()
                 data = [model_entry(mid, meta, realm=r)
                         for mid, meta, r in merged]
+                qoder_rows = self._qoder_visible_models("all")
+                data.extend(qoder_rows)
                 return self._json(200, {
                     "object": "list", "data": data,
                     "realm": "all", "merged": True,
                     "count": len(data),
                     "available_count": sum(1 for m in data
                                            if m.get("available") is True),
+                    "qoder_count": len(qoder_rows),
                     "realms": ["cn", "intl"]})
             data = [model_entry(mid, meta, realm=req_realm)
                     for mid, meta in entries]
@@ -10113,7 +10115,7 @@ class Handler(BaseHTTPRequestHandler):
             # 但**只在凭据可读时**才列——列了却调不通比不列更糟。
             # 名字带 `qoder/` 前缀，避免和 Trae 的 GLM-5.3 / Kimi-K3 撞名：
             # 两家都有 GLM-5.3，同名会让客户端选到错的那家。
-            qoder_rows = qoder_model_entries()
+            qoder_rows = self._qoder_visible_models(req_realm)
             if qoder_rows:
                 data = data + qoder_rows
             try:
@@ -10664,84 +10666,119 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "token": token})
         return self._error(404, "not found", "invalid_request_error")
 
-    def _handle_qoder_chat(self, payload, model_key):
-        """Qoder 通道的 /v1/chat/completions。
+    def _qoder_visible_models(self, realm):
+        if self._key_realm() == "intl" or realm == "intl":
+            return []
+        return [row for row in qoder_model_entries()
+                if not self._banned_model_error(row["id"])
+                and not self._key_model_error(row["id"])]
 
-        与 Trae 的两条通道（raw_chat / SOLO）并列，共用同一份 OpenAI 形状的
-        出入参。Qoder 侧的错误一律转成 OpenAI 错误体，不把 COSY/双层 SSE 的
-        内部形状漏给客户端——那只会让人以为是网关坏了。
-        """
+    def _handle_qoder_chat(self, payload, model_key):
+        """Explicit, policy-checked Chat-only provider, without consumer fallback."""
+        model = QODER_PREFIX + model_key
         started = time.monotonic()
         request_id = uuid.uuid4().hex
-        messages = payload.get("messages") or []
         want_stream = bool(payload.get("stream"))
-
-        request = {
-            "max_tokens": payload.get("max_tokens")
-            or payload.get("max_completion_tokens"),
-            "enable_thinking": bool(payload.get("enable_thinking") is True
-                                    or (payload.get("reasoning_effort")
-                                        not in (None, "", "none", "off"))),
-            "reasoning_effort": payload.get("reasoning_effort"),
-            "session_id": payload.get("session_id") or payload.get("user"),
-            "tools": payload.get("tools"),
-        }
-
-        if want_stream:
+        iterator = None
+        begun = False
+        ctx = dict(account="qoder", key_id=self._key_id_for_usage(),
+                   request_id=request_id, stream=want_stream,
+                   provider="qoder", realm="cn")
+        try:
+            realm = self._request_realm() or "cn"
+            blocked = self._model_precheck(model, realm)
+            if blocked:
+                status = int(getattr(self, "_precheck_status", 400))
+                return self._error(status, blocked, "quota_exceeded" if status == 429 else "invalid_request_error")
+            if not model_key or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", model_key):
+                return self._error(400, "Use a canonical qoder/<model-key> id", "invalid_request_error")
+            messages = payload.get("messages")
+            if not isinstance(messages, list) or not messages or any(not isinstance(m, dict) for m in messages):
+                return self._error(400, "messages must be a non-empty array of objects", "invalid_request_error")
+            if payload.get("tool_choice") not in (None, "auto"):
+                return self._error(400, "Qoder supports tool_choice=auto only", "unsupported_parameter")
+            # Local settings are keyed by the canonical id, not an overlapping Trae alias.
+            enforce_model_context(payload, model, "cn")
+            if not qoder_enabled():
+                return self._error(503, "Qoder is disabled or credentials are not configured", "provider_unavailable")
+            rows = trae_qoder.model_list()
+            meta = next((row for row in rows if row.get("key") == model_key), None)
+            if meta is None:
+                return self._error(400, "Unknown Qoder model key", "invalid_request_error")
+            if meta.get("enabled") is False or meta.get("available") is False:
+                return self._error(400, "Qoder model is not available", "invalid_request_error")
+            request = {
+                "max_tokens": payload.get("max_tokens") or payload.get("max_completion_tokens"),
+                "enable_thinking": payload.get("enable_thinking") is True or payload.get("reasoning_effort") not in (None, "", "none", "off"),
+                "reasoning_effort": payload.get("reasoning_effort"),
+                "session_id": payload.get("session_id") or payload.get("user"),
+                "tools": payload.get("tools"),
+            }
+            self.realm_used = "cn"
+            self.realm_reason = "provider:qoder"
+            if not want_stream:
+                result = trae_qoder.complete_chat(model_key, messages, request)
+                result["id"] = "chatcmpl-qoder-" + request_id
+                result["model"] = model
+                self._json(200, result)
+                record_usage(model, result.get("usage"), elapsed_ms=int((time.monotonic()-started)*1000), **ctx)
+                return
+            iterator = iter(trae_qoder.stream_chat(model_key, messages, request))
+            # Opening/first-frame errors retain their HTTP status, before SSE headers.
+            first = next(iterator)
             self._sse_begin()
-            self.send_header  # noqa: B018  (占位：头已在 _sse_begin 发出)
-            finish = "stop"
-            try:
-                for chunk in trae_qoder.stream_chat(model_key, messages, request):
-                    for choice in chunk.get("choices") or []:
-                        if choice.get("finish_reason"):
-                            finish = choice["finish_reason"]
-                    frame = dict(chunk)
-                    frame["id"] = "chatcmpl-qoder-%s" % request_id
-                    self._sse_write(
-                        ("data: " + json.dumps(frame, ensure_ascii=False)
-                         + "\n\n").encode("utf-8"))
-            except trae_qoder.QoderError as exc:
-                record_error(model_key, exc.status, str(exc)[:200],
-                             elapsed_ms=int((time.monotonic() - started) * 1000))
-                err = {"error": {"message": exc.message, "type": exc.kind,
-                                 "code": exc.status}}
-                self._sse_write(
-                    ("data: " + json.dumps(err, ensure_ascii=False)
-                     + "\n\n").encode("utf-8"))
-            except Exception as exc:                            # noqa: BLE001
-                record_error(model_key, 502, str(exc)[:200],
-                             elapsed_ms=int((time.monotonic() - started) * 1000))
-                err = {"error": {"message": "Qoder upstream failed: %s" % exc,
-                                 "type": "upstream_error", "code": 502}}
-                self._sse_write(
-                    ("data: " + json.dumps(err, ensure_ascii=False)
-                     + "\n\n").encode("utf-8"))
+            begun = True
+            usage = None
+            finished = False
+            chunk = first
+            while True:
+                if not isinstance(chunk, dict):
+                    raise ValueError("invalid provider chunk")
+                if chunk.get("usage") is not None:
+                    usage = chunk["usage"]
+                finished = finished or any(c.get("finish_reason") for c in chunk.get("choices") or [])
+                frame = dict(chunk, id="chatcmpl-qoder-"+request_id, model=model)
+                self._sse_write(("data: "+json.dumps(frame, ensure_ascii=False)+"\n\n").encode("utf-8"))
+                try:
+                    chunk = next(iterator)
+                except StopIteration:
+                    break
+            if not finished:
+                raise ValueError("incomplete provider stream")
             self._sse_write(b"data: [DONE]\n\n")
             self._sse_end()
-            record_usage(model_key, None, stream=True,
-                         elapsed_ms=int((time.monotonic() - started) * 1000),
-                         account="qoder", key_id=self._key_id_for_usage(),
-                         fp=prompt_fingerprint(messages), request_id=request_id)
-            return
-
-        try:
-            result = trae_qoder.complete_chat(model_key, messages, request)
-        except trae_qoder.QoderError as exc:
-            record_error(model_key, exc.status, str(exc)[:200],
-                         elapsed_ms=int((time.monotonic() - started) * 1000))
-            return self._error(exc.status, exc.message, exc.kind)
-        except Exception as exc:                                # noqa: BLE001
-            record_error(model_key, 502, str(exc)[:200],
-                         elapsed_ms=int((time.monotonic() - started) * 1000))
-            return self._error(502, "Qoder upstream failed: %s" % exc,
-                               "upstream_error")
-        result["id"] = "chatcmpl-qoder-%s" % request_id
-        record_usage(model_key, result.get("usage"), stream=False,
-                     elapsed_ms=int((time.monotonic() - started) * 1000),
-                     account="qoder", key_id=self._key_id_for_usage(),
-                     fp=prompt_fingerprint(messages), request_id=request_id)
-        return self._json(200, result)
+            record_usage(model, usage, elapsed_ms=int((time.monotonic()-started)*1000), **ctx)
+        except Exception as exc:
+            if isinstance(exc, UpstreamStatus):
+                status, message, kind = exc.status, exc.detail, "invalid_request_error"
+            elif isinstance(exc, trae_qoder.QoderError):
+                status = getattr(exc, "status", 502)
+                status = status if isinstance(status, int) and 400 <= status <= 599 else 502
+                # Do not trust arbitrary exception bodies from upstream frames.
+                message, kind = "Qoder upstream request failed", "upstream_error"
+            elif isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+                status, message, kind = 499, "Client disconnected", "client_disconnected"
+            else:
+                status, message, kind = 502, "Qoder upstream request failed", "upstream_error"
+            record_error(model, status, message, elapsed_ms=int((time.monotonic()-started)*1000), **ctx)
+            if status == 499:
+                self.close_connection = True
+                return
+            if not begun:
+                return self._error(status, message, kind)
+            try:
+                self._sse_write(("data: "+json.dumps({"error":{"message":message,"type":kind,"code":status}})+"\n\n").encode("utf-8"))
+                self._sse_write(b"data: [DONE]\n\n")
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                self.close_connection = True
+            finally:
+                self._sse_end()
+        finally:
+            if iterator is not None and hasattr(iterator, "close"):
+                try:
+                    iterator.close()
+                except Exception:
+                    pass
 
     def _handle_agent_solo(self, payload):
         model = str(payload.get("model") or "deepseek-v4.1-flash")
@@ -11865,6 +11902,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if is_account_route:
             return self._handle_accounts(path, payload)
+        if str(payload.get("model") or "").startswith(QODER_PREFIX) and path not in ("/v1/chat/completions", "/chat/completions"):
+            return self._error(400, "Qoder currently supports Chat Completions only", "unsupported_protocol")
         if path in ("/v1/responses", "/responses"):
             return self._handle_responses(payload)
         if path in ("/v1/messages", "/v1/messages/count_tokens"):
@@ -11874,7 +11913,7 @@ class Handler(BaseHTTPRequestHandler):
         # Qoder 优先判定：它的 id 带 `qoder/` 前缀，或裸名在 Qoder 目录里唯一命中。
         # 放在 SOLO 判定之前，否则 `qoder/gmodel` 会被当成未知的 Trae 模型。
         _qoder_key = qoder_model_name(payload.get("model"))
-        if _qoder_key:
+        if _qoder_key is not None:
             return self._handle_qoder_chat(payload, _qoder_key)
         if str(payload.get("model") or "") in SOLO_AGENT_MODELS:
             return self._handle_agent_solo(payload)

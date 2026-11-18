@@ -1543,7 +1543,7 @@ def test_deploy():
     low = docker.lower()
     check("Dockerfile EXPOSE 8791", "expose 8791" in low)
     check("Dockerfile 入口是 trae_proxy.py", "trae_proxy.py" in docker)
-    check("Dockerfile 未残留 qoder 字样", "qoder" not in low)
+    check("Dockerfile 未残留 Qoder 旧产品名", "qoder2api" not in low and "qoder-proxy" not in low)
     check("Dockerfile 不再依赖 _install_umid", "_install_umid" not in low)
     check("Dockerfile 有 HEALTHCHECK", "healthcheck" in low)
     lint = _lint_dockerfile(docker)
