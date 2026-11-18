@@ -183,6 +183,53 @@ curl "http://127.0.0.1:8791/v1/models?realm=cn"
 
 ---
 
+## 🔀 Qoder CN 中转（可选）
+
+除 Trae 双区外，网关还可以把 **Qoder CN** 当作第三个上游，与 Trae 并列共用
+`/v1/chat/completions`。配置完整凭据后才可用；未配置时不读取桌面登录态、不访问 Qoder 上游。当前仅支持 Chat Completions，不支持 Qoder 的 Responses / Anthropic Messages。
+
+### 模型命名
+
+Qoder 的模型 id 一律带 `qoder/` 前缀。两家都有 GLM-5.3 / Kimi-K3，裸名会选到错的那一家：
+
+| id | 模型 | id | 模型 |
+|---|---|---|---|
+| `qoder/auto` | Auto | `qoder/gmodel` | GLM-5.3 |
+| `qoder/qmodel_latest` | Qwen4-Max-Preview | `qoder/gfmodel` | GLM-5.3-Flash |
+| `qoder/qmodel_38max` | Qwen3.8-Max | `qoder/kmodel_latest` | Kimi-K3.1-Pro |
+| `qoder/qfmodel` | Qwen3.8-Flash | `qoder/kmodel` | Kimi-K2.8-Preview |
+| `qoder/dmodel` | DeepSeek-V4-Pro | `qoder/jmodel` | Step-5-Preview |
+| `qoder/dfmodel` | DeepSeek-Flash | `qoder/mmodel` | MiniMax-M3.1-Flash |
+
+**仅接受 `qoder/<key>`**。裸 key / 显示名不选择 Qoder，避免抢占 Trae 路由；以上为示例，实际可用模型以配置账号的 `/v1/models` 目录为准。Qoder 归属 CN：绑定国际出口的 Key 不可调用；既有模型白名单、封禁、日配额与本地上下文预算同样生效。`tool_choice` 仅支持省略或 `auto`，其他取值明确报错。
+
+```bash
+curl http://127.0.0.1:8791/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qoder/gmodel","messages":[{"role":"user","content":"hi"}],"stream":false}'
+```
+
+### 凭据
+
+推荐通过以下三个**必填**环境变量配置；任一认证变量存在即使用 env 模式，缺项明确失败，不从个人文件补齐。核心网络协议只用标准库。Windows 桌面导入默认关闭，须显式设置 `QODER_DESKTOP_IMPORT=1`；此可选路径使用 DPAPI，并额外需要 `pycryptodome`（`python -m pip install pycryptodome`），不包含在默认镜像中。
+
+| 变量 | 用途 |
+|---|---|
+| `QODER_CN_TOKEN` | `dt-` 开头的访问令牌（给了就不读桌面端） |
+| `QODER_CN_UID` | 账号 uid |
+| `QODER_CN_MACHINE_ID` | 必填机器标识；env 模式不回退个人缓存 |
+| `QODER_DESKTOP_IMPORT` | `1` 显式开启 Windows 桌面只读导入；默认关闭 |
+| `QODER_CN_DATA_DIR` | 覆盖桌面端数据目录 |
+| `QODER_DISABLE` | 设为 `1` 整体关闭 Qoder 通道 |
+
+自检：`python trae_qoder.py`（打印凭据、模型列表，并跑一次对话）。
+
+> 思考型模型（如 `qoder/kmodel_latest`）会先吐大量 `reasoning_content`，
+> `max_tokens` 给小了会只拿到思考、`content` 为空。正文在 `message.content`，
+> 思考过程在 `message.reasoning_content`。
+
+---
+
 ## 🧭 国际版模型与额度
 
 国际版 `/v1/models` 当前目录 10 个，其中 6 个 Free 可用：

@@ -30,6 +30,7 @@ jobs:
           python test_issue_solo.py
           python test_issue_packaging.py
           python -m unittest test_oauth_core test_oauth_http test_issue_enterprise
+          python -m unittest test_qoder_adapter test_qoder_http
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

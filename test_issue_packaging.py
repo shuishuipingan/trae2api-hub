@@ -127,6 +127,7 @@ def test_scripts():
 # ===========================================================================
 CRITICAL_ASSETS = (
     "trae_account_types.py",
+    "trae_qoder.py",
     "i18n/en.json",
     "pricing/trae_pricing.json",
     "dashboard.html",
