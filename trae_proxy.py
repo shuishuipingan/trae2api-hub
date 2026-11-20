@@ -7875,8 +7875,18 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
             continue
         if code in (401, 403):
             dead = trae_accounts.session_dead(detail)
+            # A risk-control 403 (4015 upstream rejection / 4019 risk hit) is not
+            # an account fault: the same device id and egress are what tripped it,
+            # so the next account gets the same answer. note_error() already cools
+            # this one (4019 -> BREAKER_RISK 1800s), and the old unconditional
+            # continue then walks the whole pool, cooling every account in turn:
+            # one request can leave the pool unusable for 30 minutes. Stop here
+            # instead and hand the reason to the client.
+            _risk = ("risk_control" in detail or "4015" in detail
+                     or "4019" in detail
+                     or "unusual activity" in detail.lower())
             account.note_error("HTTP %s: %s" % (code, detail[:120]),
-                               code=code, model=model,
+                               code=4019 if _risk else code, model=model,
                                cooldown=300 if dead else None)
             if dead:
                 account.enabled = False
@@ -7886,6 +7896,16 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
                     pass
                 log("account %s session dead (TOKEN_EXPIRE) - disabled"
                     % account.uid[:8], level="ERROR")
+            if _risk:
+                log("account %s hit RISK 403 (%s) - STOPPING rotation: rotating "
+                    "here would cool the rest of the pool"
+                    % (account.uid[:8], detail[:60]), level="ERROR", tag="chat")
+                raise UpstreamStatus(
+                    403,
+                    "upstream risk control (4015/4019): stopped rotating to avoid "
+                    "cooling every account in the pool; this account is parked for "
+                    "30 minutes. Do not retry immediately. Upstream said: %s"
+                    % (detail[:200] or "(no detail)"))
             log("account %s rejected (HTTP %s), rotating"
                 % (account.uid[:8], code), level="WARN", tag="chat")
             if session_key and POOL:
