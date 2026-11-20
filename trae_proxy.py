@@ -111,6 +111,24 @@ SOLO_AGENT_MODELS = {
     "Doubao-Seed-2.1-Pro", "Doubao-Seed-2.1-Turbo", "Doubao-Seed-Evolving",
     "step-5-preview",
 } | set(SOLO_MODEL_ALIASES)
+
+# 上游 llm_utils_chat 按 function 分组，两组的模型集合不通用：
+#   · solo_work_remote  18 个
+#   · solo_agent_remote 20 个（多出 Doubao-Seed-Code / qwen3.8-flash）
+# 把只在 agent 组的模型发给 solo_work_lite，上游不会回 "model not found"，
+# 而是回 4001 "the param is invalid"，很容易被误判成 max_tokens / messages 的问题。
+# 清单来源：
+#   GET /api/remote/v1/models?functions=solo_agent_remote,solo_work_remote,solo_design_remote
+# 实测（2026-11-20）：Seed-Code 在 solo_agent_lite / solo_agent_remote 都能跑，
+# qwen3.8-flash 只有 solo_agent_remote 能跑，所以统一用 remote。
+SOLO_AGENT_ONLY = {"Doubao-Seed-Code", "qwen3.8-flash"}
+
+
+def solo_function_for(model):
+    """模型该走哪个 SOLO function（两组模型不通用，见 SOLO_AGENT_ONLY）。"""
+    return "solo_agent_remote" if model in SOLO_AGENT_ONLY else "solo_work_lite"
+
+
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
 
@@ -6229,7 +6247,7 @@ def _solo_tool_calls(slots):
 
 
 def trae_solo_chat(account, payload, timeout=180):
-    """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite).
+    """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite / solo_agent_remote).
 
     This is the portable Trae SOLO channel used by Agent models. It only needs
     the account access token plus the device identity; no SQLCipher, no AHA,
@@ -6280,7 +6298,7 @@ def trae_solo_chat(account, payload, timeout=180):
         raise RuntimeError("messages must not be empty")
     body = {
         "messages": messages,
-        "function": "solo_work_lite",
+        "function": solo_function_for(model),
         "stream": True,
         "config_name": model,
         "model": model,
