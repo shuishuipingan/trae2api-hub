@@ -1,3 +1,10 @@
+## [未发布]
+
+### 修复
+
+- SOLO 通道按模型所属分组选择 `function`。上游 `llm_utils_chat` 的 `solo_work_remote`（18 个）与 `solo_agent_remote`（20 个）模型集合不通用，`Doubao-Seed-Code`（显示名 Seed-Code）和 `qwen3.8-flash` 只在 agent 组。旧实现对所有模型统一发 `solo_work_lite`，这两个模型必被上游拒绝：`4001: We're sorry, the param is invalid`——错误文案容易被误判成 `max_tokens` / `messages` 问题，实际是模型与 function 不匹配。
+- 新增 `test_issue_solo_groups.py`：锁定"模型 → function"映射，并校验 `trae_solo_chat` 真实发出的请求体；全程离线，不读账号、不联网。
+
 ## [1.7.0] - 2026-11-18
 
 ### 新增

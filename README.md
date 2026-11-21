@@ -433,7 +433,8 @@ python _diag_gateway.py --chat
 CN 的 SOLO/Agent 模型通过纯 HTTP 通道执行：
 
     POST https://trae-api-cn.mchost.guru/api/agent/v3/llm_utils_chat
-    function = solo_work_lite
+    function = solo_agent_remote  # Seed-Code (Doubao-Seed-Code), Qwen3.8-Flash (qwen3.8-flash)
+    function = solo_work_lite     # 其余已接入的 SOLO 模型
 
 这条通道只需要：
 
@@ -447,6 +448,8 @@ CN 的 SOLO/Agent 模型通过纯 HTTP 通道执行：
 
     /v1/chat/completions  -> 自动识别 20 个 SOLO 模型
     /v1/agent/chat        -> 显式 Agent 入口
+
+两个入口均支持上述两个 Agent 专有模型的目录别名，也接受这些名称加 `-solo` 后缀。
 
 示例：
 

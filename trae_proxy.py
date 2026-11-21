@@ -111,6 +111,35 @@ SOLO_AGENT_MODELS = {
     "Doubao-Seed-2.1-Pro", "Doubao-Seed-2.1-Turbo", "Doubao-Seed-Evolving",
     "step-5-preview",
 } | set(SOLO_MODEL_ALIASES)
+
+# 上游 llm_utils_chat 按 function 分组，两组的模型集合不通用：
+#   · solo_work_remote  18 个
+#   · solo_agent_remote 20 个（多出 Doubao-Seed-Code / qwen3.8-flash）
+# 把只在 agent 组的模型发给 solo_work_lite，上游不会回 "model not found"，
+# 而是回 4001 "the param is invalid"，很容易被误判成 max_tokens / messages 的问题。
+# 清单来源：
+#   GET /api/remote/v1/models?functions=solo_agent_remote,solo_work_remote,solo_design_remote
+# 实测（2026-11-20）：Seed-Code 在 solo_agent_lite / solo_agent_remote 都能跑，
+# qwen3.8-flash 只有 solo_agent_remote 能跑，所以统一用 remote。
+SOLO_AGENT_ONLY = {"Doubao-Seed-Code", "qwen3.8-flash"}
+
+
+def _solo_agent_only_key(model):
+    """Resolve only agent-only CN models, including their aliases and -solo form."""
+    name = str(model or "").strip().removesuffix("-solo")
+    if not name or "/" in name:
+        return None  # Do not claim another provider's namespace via catalog tail matching.
+    key = SOLO_MODEL_ALIASES.get(name, name)
+    if key not in SOLO_AGENT_ONLY:
+        key = trae_catalog.resolve_upstream_key(name, realm="cn")
+    return key if key in SOLO_AGENT_ONLY else None
+
+
+def solo_function_for(model):
+    """Select the SOLO function for a canonical upstream model key."""
+    return "solo_agent_remote" if model in SOLO_AGENT_ONLY else "solo_work_lite"
+
+
 CURRENT_REALM = os.environ.get("TRAE_PROXY_DEFAULT_REALM", "cn")
 
 
@@ -6229,7 +6258,7 @@ def _solo_tool_calls(slots):
 
 
 def trae_solo_chat(account, payload, timeout=180):
-    """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite).
+    """POST /api/agent/v3/llm_utils_chat (function=solo_work_lite / solo_agent_remote).
 
     This is the portable Trae SOLO channel used by Agent models. It only needs
     the account access token plus the device identity; no SQLCipher, no AHA,
@@ -6272,15 +6301,14 @@ def trae_solo_chat(account, payload, timeout=180):
         "Request-Traffic-Type": "prod",
     }
     model = str(payload.get("model") or "deepseek-v4.1-flash").strip()
-    model = SOLO_MODEL_ALIASES.get(model, model)
-    if model.endswith("-solo"):
-        model = model[:-5]
+    model = (_solo_agent_only_key(model)
+             or SOLO_MODEL_ALIASES.get(model, model).removesuffix("-solo"))
     messages = _solo_messages(payload)
     if not messages:
         raise RuntimeError("messages must not be empty")
     body = {
         "messages": messages,
-        "function": "solo_work_lite",
+        "function": solo_function_for(model),
         "stream": True,
         "config_name": model,
         "model": model,
@@ -9551,7 +9579,7 @@ class Handler(BaseHTTPRequestHandler):
             target = detect_model_realm(fallback) or realm
         return fallback, target, reason
 
-    def _model_precheck(self, model, realm):
+    def _model_precheck(self, model, realm, aliases=()):
         """模型级前置拒绝（统一落点，全部在 open_upstream 之前）。
 
         顺序：跨区错配[既有] -> 全局封禁[P1-4] -> Key 白名单[P1-4]。
@@ -9563,9 +9591,13 @@ class Handler(BaseHTTPRequestHandler):
         if quota_error:
             self._precheck_status = 429
             return quota_error
-        return (self._cross_realm_error(model, realm)
-                or self._banned_model_error(model)
-                or self._key_model_error(model))
+        # A model ban applies to equivalent names, but the Key allowlist
+        # continues to match only the client-supplied identifier.
+        for name in (model, *aliases):
+            blocked = self._cross_realm_error(name, realm) or self._banned_model_error(name)
+            if blocked:
+                return blocked
+        return self._key_model_error(model)
 
     def _request_realm(self, explicit=None):
         """Pick the upstream exit for this request.
@@ -10782,11 +10814,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_agent_solo(self, payload):
         model = str(payload.get("model") or "deepseek-v4.1-flash")
-        blocked = self._model_precheck(model, "cn")
+        agent_model = _solo_agent_only_key(model)
+        aliases = ()
+        if agent_model:
+            names = (agent_model, *trae_catalog.aliases_for(agent_model, "cn"))
+            aliases = tuple(name for name in dict.fromkeys(names) if name != model)
+        # Agent-only models are CN-only; respect an explicit or key-bound realm.
+        realm = self._request_realm() if agent_model else None
+        blocked = self._model_precheck(model, trae_realm(realm or "cn"), aliases=aliases)
         if blocked:
             return self._error(getattr(self, "_precheck_status", 400), blocked, "invalid_request_error")
         try:
             enforce_model_context(payload, model, "cn")
+            if agent_model and agent_model != model:
+                enforce_model_context(payload, agent_model, "cn")
         except UpstreamStatus as exc:
             return self._error(exc.status, exc.detail, "invalid_request_error")
         account = POOL.pick(realm="cn") if POOL else None
@@ -11910,12 +11951,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_anthropic(path, payload)
 
         # ---- Chat Completions 主链路 ----
-        # Qoder 优先判定：它的 id 带 `qoder/` 前缀，或裸名在 Qoder 目录里唯一命中。
+        # Qoder 优先判定：只接管显式带 `qoder/` 前缀的模型。
         # 放在 SOLO 判定之前，否则 `qoder/gmodel` 会被当成未知的 Trae 模型。
         _qoder_key = qoder_model_name(payload.get("model"))
         if _qoder_key is not None:
             return self._handle_qoder_chat(payload, _qoder_key)
-        if str(payload.get("model") or "") in SOLO_AGENT_MODELS:
+        model_name = str(payload.get("model") or "")
+        if model_name in SOLO_AGENT_MODELS or _solo_agent_only_key(model_name):
             return self._handle_agent_solo(payload)
         normalize_tool_choice(payload)
         normalize_tools(payload)
