@@ -1,9 +1,12 @@
-## [未发布]
+## [1.7.1] - 2026-11-21
 
 ### 修复
 
 - SOLO 通道按模型所属分组选择 `function`。上游 `llm_utils_chat` 的 `solo_work_remote`（18 个）与 `solo_agent_remote`（20 个）模型集合不通用，`Doubao-Seed-Code`（显示名 Seed-Code）和 `qwen3.8-flash` 只在 agent 组。旧实现对所有模型统一发 `solo_work_lite`，这两个模型必被上游拒绝：`4001: We're sorry, the param is invalid`——错误文案容易被误判成 `max_tokens` / `messages` 问题，实际是模型与 function 不匹配。
-- 新增 `test_issue_solo_groups.py`：锁定"模型 → function"映射，并校验 `trae_solo_chat` 真实发出的请求体；全程离线，不读账号、不联网。
+- #10 补齐上述两个模型的目录别名和 `-solo` 入口，保留 Key 白名单规则，并检查模型封禁、上下文与出口绑定。
+- #11 Trae 上游明确返回业务码 4015 / 4019 时终止本次请求，不再刷新凭据、换号或重开流；仅按对应冷却策略记录命中账号，普通 401 / 403 的处理保持不变。
+- 上游配额耗尽（4008）不再误回 HTTP 502 或在 SSE 中反复重开。未发响应头时返回 429，已建 SSE 时发对应协议的错误终态；不冷却或换号。
+- 新增 SOLO、风控与上游配额离线回归，纳入 CI；未使用真实账号触发风控。
 
 ## [1.7.0] - 2026-11-18
 

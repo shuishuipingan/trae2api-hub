@@ -348,6 +348,85 @@ class ProviderRiskTests(unittest.TestCase):
         self.refresh.assert_not_called()
         self.assertEqual(self.pool.affinity.get("fixture-session"), self.first.uid)
 
+    def test_upstream_quota_4008_is_terminal_in_all_response_modes(self):
+        for path in PATHS:
+            for streaming in (False, True):
+                for raw in (False, True):
+                    with self.subTest(path=path, streaming=streaming, raw=raw):
+                        self.reset_pool()
+                        if raw:
+                            upstream = http_error(429, {"error": {"code": "4008", "message": SECRET}})
+                        else:
+                            upstream = io.BytesIO(event("error", code=4008, message=SECRET))
+                        self.transport.side_effect = [upstream]
+                        handler = self.request(path, streaming)
+                        self.assert_quota_terminal(handler, path, streaming and not raw)
+                        self.transport.assert_called_once()
+                        self.refresh.assert_not_called()
+                        self.sleep.assert_not_called()
+                        self.assertEqual(self.pool.picked, [self.first.uid])
+                        # A successful HTTP handshake updates the connection timestamp.
+                        first_expected = dict(self.first_before, last_ok_at=self.now) if not raw else self.first_before
+                        self.assertEqual(self.first.to_dict(), first_expected)
+                        self.assertEqual(self.second.to_dict(), self.second_before)
+                        self.assertEqual(self.pool.affinity.get("fixture-session"), self.first.uid)
+                        P.record_usage.assert_not_called()
+
+    def assert_quota_terminal(self, handler, path, sse):
+        if not sse:
+            self.assertEqual(handler.status, 429)
+            self.assertEqual(handler.result["error"]["type"], "quota_exceeded")
+            self.assertEqual(handler.result["error"]["code"], 4008)
+            message = handler.result["error"]["message"]
+        else:
+            self.assertEqual(handler.status, 200)
+            self.assertTrue(handler.ended)
+            terminal = handler.stream_data()[-1]
+            if path.endswith("/responses"):
+                self.assertEqual(terminal["type"], "response.failed")
+                self.assertEqual(terminal["response"]["error"]["code"], "4008")
+                message = terminal["response"]["error"]["message"]
+            elif path.endswith("/messages"):
+                self.assertEqual(terminal["type"], "error")
+                message = terminal["error"]["message"]
+            else:
+                self.assertEqual(terminal["error"]["code"], 4008)
+                self.assertEqual(terminal["error"]["type"], "quota_exceeded")
+                self.assertEqual(handler.frames[-1], b"data: [DONE]\n\n")
+                message = terminal["error"]["message"]
+        self.assertIn("Trae 4008", message)
+        self.assertNotIn(SECRET, message)
+        self.record_error.assert_called_once()
+        self.assertEqual(self.record_error.call_args.args[1], 429)
+        self.assertNotIn(SECRET, self.record_error.call_args.args[2])
+
+    def test_upstream_quota_after_reopen_preserves_terminal_reason(self):
+        for path, streaming in [(p, False) for p in PATHS] + [(p, True) for p in PATHS[:2]]:
+            with self.subTest(path=path, streaming=streaming):
+                self.reset_pool()
+                self.transport.side_effect = [
+                    io.BytesIO(event("error", code=1001, message="authentication expired")),
+                    http_error(429, {"code": 4008, "message": SECRET}),
+                ]
+                self.assert_quota_terminal(self.request(path, streaming), path, streaming)
+                self.assertEqual(self.transport.call_count, 2)
+                self.assertEqual(self.pool.picked, [self.first.uid, self.second.uid])
+                self.assertEqual(self.second.to_dict(), self.second_before)
+                P.record_usage.assert_not_called()
+
+    def test_ordinary_429_is_still_retryable_not_upstream_quota(self):
+        for message in ("temporary throttle", "temporary throttle; reference 14008"):
+            with self.subTest(message=message):
+                self.reset_pool()
+                self.transport.side_effect = [http_error(429, {"code": 429, "message": message}),
+                                              io.BytesIO(event("done"))]
+                upstream, account, _ = self.open()
+                upstream.close()
+                self.assertIs(account, self.second)
+                self.assertEqual(self.transport.call_count, 2)
+                self.assertEqual(self.first.cooldown_until, self.now + 60)
+        self.assertTrue(P.should_retry_envelope(P.UpstreamStatus(429, "temporary throttle"), False, 0))
+
     def test_local_quota_guard_still_blocks_before_transport(self):
         self.pool.guard_result = (False, "quota_exceeded", "fixture quota guard")
         with self.assertRaises(P.QuotaBlocked):

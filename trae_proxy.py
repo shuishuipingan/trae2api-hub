@@ -85,7 +85,7 @@ except Exception:                           # ImportError / 语法错误都回�
 
 TRAE_CLIENT_SOURCE = "trae_client" if _trae_client is not None else "embedded"
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 
 SOLO_MODEL_ALIASES = {
     "Seed-Code": "Doubao-Seed-Code",
@@ -524,7 +524,18 @@ class UpstreamStatus(Exception):
         self.detail = str(detail or "")
 
 
-class ProviderRisk(UpstreamStatus):
+class TerminalProviderError(UpstreamStatus):
+    """Upstream business refusal: do not reopen the current request."""
+
+
+class ProviderQuota(TerminalProviderError):
+    provider_code = 4008
+
+    def __init__(self):
+        super().__init__(429, "Trae 4008: upstream quota exhausted; wait for quota to reset.")
+
+
+class ProviderRisk(TerminalProviderError):
     """Terminal Trae refusal with its original business code, not an auth failure."""
 
     def __init__(self, provider_code):
@@ -6746,15 +6757,21 @@ def _provider_risk_code(code):
     return None
 
 
-def _provider_risk_from_payload(payload):
+def _terminal_provider_code(code):
+    if (type(code) is int and code == 4008) or code == "4008":
+        return ProviderQuota()
+    risk_code = _provider_risk_code(code)
+    return ProviderRisk(risk_code) if risk_code is not None else None
+
+
+def _terminal_provider_from_payload(payload):
     if not isinstance(payload, dict):
         return None
     code = payload.get("code")
     error = payload.get("error")
     if code in (None, "") and isinstance(error, dict):
         code = error.get("code")
-    code = _provider_risk_code(code)
-    return ProviderRisk(code) if code is not None else None
+    return _terminal_provider_code(code)
 
 
 # ---- 用量归一 -------------------------------------------------------------
@@ -7517,8 +7534,8 @@ def _to_int_status(status):
 
 
 def _upstream_status_message(exc):
-    if isinstance(exc, ProviderRisk):
-        return exc.detail, "risk_control"
+    if isinstance(exc, TerminalProviderError):
+        return exc.detail, "risk_control" if isinstance(exc, ProviderRisk) else "quota_exceeded"
     return friendly_upstream_error(_to_int_status(exc.status), exc.detail)
 
 
@@ -7534,6 +7551,8 @@ def _handle_envelope_account_cooldown(account, exc, model=None, session_key=None
     """Apply account state for a non-200 SSE envelope."""
     if isinstance(exc, ProviderRisk):
         _note_provider_risk(account, exc, model)
+        return
+    if isinstance(exc, ProviderQuota):
         return
     detail = getattr(exc, "detail", "") or ""
     if "4008" in detail or "exceeded the quota" in detail.lower():
@@ -7615,7 +7634,7 @@ def should_retry_envelope(exc, emitted_bytes, attempt):
     层重试覆盖不到。只要 **尚未向客户端发出任何字节**、未超预算、且错误属
     瞬时类（418/5xx/provider_error，且非客户端参数错），就值得重开。
     """
-    if isinstance(exc, (ProviderRisk, InvalidToolArguments)):
+    if isinstance(exc, (TerminalProviderError, InvalidToolArguments)):
         return False
     if emitted_bytes:
         return False
@@ -7635,7 +7654,7 @@ def aggregate_with_envelope_retry(resp, payload, session_key, realm, model,
 
     仅用于客户端尚未收到任何字节的非流式路径。返回 (chat_obj, account)：
       - 最终信封错误以 UpstreamStatus 抛出（调用方既有分支处理：记账+友好提示）
-      - 重开遇到 ProviderRisk 时保留该终止错误；其他重开失败沿用原错误。
+      - 重开遇到上游终止业务错误时保留该错误；其他重开失败沿用原错误。
       - 传输层瞬时错误（TLS EOF 等）同样触发重开
     传入的 resp 由调用方的 with/finally 关闭；本函数只负责关闭重开的新连接。
     """
@@ -7658,7 +7677,7 @@ def aggregate_with_envelope_retry(resp, payload, session_key, realm, model,
                 try:
                     new_resp, account, _ = open_upstream(
                         payload, session_key=session_key, target_realm=realm)
-                except ProviderRisk:
+                except TerminalProviderError:
                     raise
                 except Exception as reopen_exc:
                     log("reopen after envelope error failed: %s"
@@ -7682,7 +7701,7 @@ def aggregate_with_envelope_retry(resp, payload, session_key, realm, model,
                 try:
                     new_resp, account, _ = open_upstream(
                         payload, session_key=session_key, target_realm=realm)
-                except ProviderRisk:
+                except TerminalProviderError:
                     raise
                 except Exception as reopen_exc:
                     log("reopen after transport error failed: %s"
@@ -7849,7 +7868,7 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
         host_i = 0
 
         while True:
-            risk = None
+            terminal = None
             try:
                 if _trae_client is not None and hasattr(_trae_client, "open_chat"):
                     resp = trae_open_chat(account, realm, body_obj, timeout=600)
@@ -7868,7 +7887,7 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
                     raw = exc.read(64 * 1024 + 1)
                     detail = raw[:600].decode("utf-8", "replace")
                     if len(raw) <= 64 * 1024:
-                        risk = _provider_risk_from_payload(_trae_json_or_none(raw))
+                        terminal = _terminal_provider_from_payload(_trae_json_or_none(raw))
                 except Exception:
                     detail = ""
                 finally:
@@ -7886,14 +7905,13 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
             except Exception as exc:
                 exc_obj = exc
                 if isinstance(exc, getattr(_trae_client, "UpstreamError", ())):
-                    risk_code = _provider_risk_code(exc.code)
-                    if risk_code is not None:
-                        risk = ProviderRisk(risk_code)
+                    terminal = _terminal_provider_code(exc.code)
                 code, detail = trae_exc_code_detail(exc)
 
-            if risk is not None:
-                _note_provider_risk(account, risk, model)
-                raise risk
+            if terminal is not None:
+                if isinstance(terminal, ProviderRisk):
+                    _note_provider_risk(account, terminal, model)
+                raise terminal
             if code in (401, 403) and not refreshed:
                 if trae_refresh_account(account, realm, force=True):
                     refreshed = True
@@ -7943,8 +7961,8 @@ def open_upstream(payload, session_key=None, target_realm=None, usage_ctx=None):
         if code == 429:
             # 4008 是免费额度用尽，不是账号/出口故障：不要冷却账号、不要换号，
             # 直接把 429 交给客户端（额度恢复后可立即继续用）。
-            if "4008" in detail or "exceeded the quota" in detail.lower():
-                raise UpstreamStatus(429, detail or "quota exceeded")
+            if "exceeded the quota" in detail.lower():
+                raise ProviderQuota()
             account.note_error("HTTP 429 (model throttled)", code=429,
                                model=model, cooldown=60)
             log("account %s throttled on '%s' (429), cooling 60s"
@@ -8194,9 +8212,9 @@ def iter_inner_sse(resp, holder=None, allowed_names=None):
         obj = data if isinstance(data, dict) else {}
         if event == "error" or (event == "message"
                                 and isinstance(obj.get("error"), dict)):
-            risk = _provider_risk_from_payload(obj)
-            if risk is not None:
-                raise risk
+            terminal = _terminal_provider_from_payload(obj)
+            if terminal is not None:
+                raise terminal
         if event == "metadata":
             session_id = str(obj.get("session_id") or "")
             if session_id:
@@ -9442,7 +9460,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(code, {"error": {"message": message, "type": err_type,
                                     "code": code}})
 
-    def _provider_risk_error(self, exc, model, started):
+    def _terminal_provider_error(self, exc, model, started):
         record_error(model, exc.status, exc.detail,
                      elapsed_ms=int((time.time() - started) * 1000))
         msg, kind = _upstream_status_message(exc)
@@ -9918,7 +9936,7 @@ class Handler(BaseHTTPRequestHandler):
                     _note_provider_risk(used, exc, model)
                     raise
             return {"ok": True, "model": model, "elapsed_ms": int((time.time()-started)*1000)}
-        except ProviderRisk as exc:
+        except TerminalProviderError as exc:
             return {"ok": False, "model": model, "status": exc.status,
                     "code": exc.provider_code, "error": exc.detail}
         except Exception as error:
@@ -11332,7 +11350,7 @@ class Handler(BaseHTTPRequestHandler):
                                         "model": test_model,
                                         "elapsed_ms": wall_ms,
                                         "reply": reply_text})
-            except ProviderRisk as exc:
+            except TerminalProviderError as exc:
                 return self._json(200, {"ok": False, "uid": account.uid,
                                         "status": exc.status, "code": exc.provider_code,
                                         "error": exc.detail,
@@ -11491,8 +11509,8 @@ class Handler(BaseHTTPRequestHandler):
             self.realm_used = usage_ctx.get("realm") or req_realm
             self.realm_reason = usage_ctx.get("realm_reason") or ""
             holder["account"] = account
-        except ProviderRisk as exc:
-            return self._provider_risk_error(exc, model, t_start)
+        except TerminalProviderError as exc:
+            return self._terminal_provider_error(exc, model, t_start)
         except QuotaBlocked as exc:
             record_error(model, 429, exc.message[:200],
                          elapsed_ms=int((time.time() - t_start) * 1000))
@@ -11583,8 +11601,8 @@ class Handler(BaseHTTPRequestHandler):
                 chat_obj, account = aggregate_with_envelope_retry(
                     upstream, chat_req, session_key, req_realm, model,
                     holder, account)
-            except ProviderRisk as exc:
-                return self._provider_risk_error(exc, model, t_start)
+            except TerminalProviderError as exc:
+                return self._terminal_provider_error(exc, model, t_start)
             except UpstreamStatus as exc:
                 record_error(model, exc.status, exc.detail,
                              elapsed_ms=int((time.time() - t_start) * 1000))
@@ -11645,8 +11663,8 @@ class Handler(BaseHTTPRequestHandler):
             self.realm_used = usage_ctx.get("realm") or req_realm
             self.realm_reason = usage_ctx.get("realm_reason") or ""
             holder["account"] = account
-        except ProviderRisk as exc:
-            return self._provider_risk_error(exc, model, t_start)
+        except TerminalProviderError as exc:
+            return self._terminal_provider_error(exc, model, t_start)
         except QuotaBlocked as exc:
             record_error(model, 429, exc.message[:200],
                          elapsed_ms=int((time.time() - t_start) * 1000))
@@ -11744,8 +11762,8 @@ class Handler(BaseHTTPRequestHandler):
                                         chat_req, session_key=session_key,
                                         target_realm=req_realm,
                                         usage_ctx=usage_ctx)
-                                except ProviderRisk as risk:
-                                    pump_exc = risk
+                                except TerminalProviderError as terminal:
+                                    pump_exc = terminal
                                     break
                                 except Exception as rex:
                                     log("responses reopen failed: %s"
@@ -11776,7 +11794,7 @@ class Handler(BaseHTTPRequestHandler):
                         tag="chat")
                     # Responses 协议靠终态事件收尾：只关流会让客户端一直等。
                     try:
-                        code = (pump_exc.provider_code if isinstance(pump_exc, ProviderRisk)
+                        code = (pump_exc.provider_code if isinstance(pump_exc, TerminalProviderError)
                                 else _to_int_status(pump_exc.status))
                         self._sse_write(_responses_failed_frame(holder, code, msg))
                     except Exception:
@@ -11799,8 +11817,8 @@ class Handler(BaseHTTPRequestHandler):
                 chat_obj, account = aggregate_with_envelope_retry(
                     upstream, chat_req, session_key, req_realm, model,
                     holder, account)
-            except ProviderRisk as exc:
-                return self._provider_risk_error(exc, model, t_start)
+            except TerminalProviderError as exc:
+                return self._terminal_provider_error(exc, model, t_start)
             except UpstreamStatus as exc:
                 record_error(model, exc.status, exc.detail,
                              elapsed_ms=int((time.time() - t_start) * 1000))
@@ -12087,8 +12105,8 @@ class Handler(BaseHTTPRequestHandler):
             # #26：记录实际出口（自动路由后可能与 req_realm 不同）→ 响应头可见
             self.realm_used = usage_ctx.get("realm") or req_realm
             self.realm_reason = usage_ctx.get("realm_reason") or ""
-        except ProviderRisk as exc:
-            return self._provider_risk_error(exc, model, t_start)
+        except TerminalProviderError as exc:
+            return self._terminal_provider_error(exc, model, t_start)
         except QuotaBlocked as exc:
             record_error(model, 429, exc.message[:200],
                          elapsed_ms=int((time.time() - t_start) * 1000))
@@ -12176,8 +12194,8 @@ class Handler(BaseHTTPRequestHandler):
                                         payload, session_key=session_key,
                                         target_realm=req_realm,
                                         usage_ctx=usage_ctx)
-                                except ProviderRisk as risk:
-                                    pump_exc = risk
+                                except TerminalProviderError as terminal:
+                                    pump_exc = terminal
                                     break
                                 except Exception as rex:
                                     log("chat reopen failed: %s"
@@ -12204,7 +12222,7 @@ class Handler(BaseHTTPRequestHandler):
                     wall = int((time.time() - t_start) * 1000)
                     record_error(model, exc.status, exc.detail, elapsed_ms=wall)
                     msg, etype = _upstream_status_message(exc)
-                    code = exc.provider_code if isinstance(exc, ProviderRisk) else exc.status
+                    code = exc.provider_code if isinstance(exc, TerminalProviderError) else exc.status
                     err = json.dumps({"error": {
                         "message": msg, "type": etype,
                         "code": code}}, ensure_ascii=False)
@@ -12237,8 +12255,8 @@ class Handler(BaseHTTPRequestHandler):
                 result, account = aggregate_with_envelope_retry(
                     upstream, payload, session_key, req_realm, model,
                     holder, account)
-            except ProviderRisk as exc:
-                return self._provider_risk_error(exc, model, t_start)
+            except TerminalProviderError as exc:
+                return self._terminal_provider_error(exc, model, t_start)
             except UpstreamStatus as exc:
                 record_error(model, exc.status, exc.detail,
                              elapsed_ms=int((time.time() - t_start) * 1000))
