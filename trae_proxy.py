@@ -10952,6 +10952,18 @@ class Handler(BaseHTTPRequestHandler):
             done = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
                     "choices": [{"index": 0, "delta": {}, "finish_reason": result["finish_reason"]}]}
             self._sse_write(("data: " + json.dumps(done, ensure_ascii=False) + "\n\n").encode("utf-8"))
+            # 1.6.0 在这里还发过一帧 usage（choices=[] + usage），1.7.0 起丢了。
+            # 客户端（OpenAI 约定）拿不到 usage 就只能整段按字符估算上下文：
+            # DSH 的 estimate.js 是 CHARS_PER_TOKEN = 3.5，而中文实测约 0.6
+            # token/字，于是上下文虚低约一半、自动压缩迟迟不触发。
+            # 上游真实 usage 上面已经 record_usage，这里补发给客户端。
+            _usage = result.get("usage")
+            if isinstance(_usage, dict) and _usage:
+                uframe = {"id": cid, "object": "chat.completion.chunk",
+                          "created": int(time.time()), "model": model,
+                          "choices": [], "usage": _usage}
+                self._sse_write(("data: " + json.dumps(uframe, ensure_ascii=False)
+                                 + "\n\n").encode("utf-8"))
             self._sse_write(b"data: [DONE]\n\n")
             self._sse_end()
             return
