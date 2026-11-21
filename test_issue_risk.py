@@ -37,6 +37,9 @@ class FixturePool:
         self.guard_result = (True, "", "")
         self.affinity = P.trae_accounts.SessionAffinity()
 
+    def get(self, uid):
+        return next((a for a in self.accounts if a.uid == uid), None)
+
     def count_ready(self, realm, model=None):
         return sum(a.ready(model) for a in self.accounts)
 
@@ -302,6 +305,27 @@ class ProviderRiskTests(unittest.TestCase):
         self.assert_risk(4015, self.first)
         self.assertEqual(self.second.to_dict(), self.second_before)
         self.refresh.assert_not_called()
+
+    def test_account_probes_cool_only_the_account_used_and_keep_failure(self):
+        for admin in (False, True):
+            for raw in (False, True):
+                with self.subTest(admin=admin, raw=raw):
+                    self.reset_pool()
+                    body = (http_error(403, {"code": 4015, "message": SECRET})
+                            if raw else io.BytesIO(event("error", code=4015, message=SECRET)))
+                    self.transport.side_effect = [body]
+                    path = "/accounts/test"
+                    handler = MemoryHandler(path, {})
+                    if admin:
+                        outcome = handler._admin_test_account(self.second)
+                    else:
+                        handler._handle_accounts(path, {"uid": self.second.uid, "model": MODEL})
+                        outcome = handler.result
+                    self.assertFalse(outcome["ok"])
+                    self.assertEqual((outcome["status"], outcome["code"]), (403, 4015))
+                    self.assertNotIn(SECRET, outcome["error"])
+                    self.transport.assert_called_once()
+                    self.assert_first_only(4015)
 
     def test_quota_4008_mapping_and_account_state_are_unchanged(self):
         self.transport.side_effect = [http_error(429, {"code": 4008,
