@@ -6206,6 +6206,21 @@ def _solo_messages(payload):
             for part in content:
                 if isinstance(part, dict) and part.get("type") == "text":
                     blocks.append({"type": "text", "text": str(part.get("text") or "")})
+                elif isinstance(part, dict) and (
+                        part.get("type") in ("image_url", "image", "input_image")
+                        or "image_url" in part):
+                    # SOLO 上游本身就是 parts 协议，实测接受 image_url part
+                    # （https URL 与 base64 data URI 均可，模型确实读图）。
+                    # 此前这里只收 text，图片在这一步被静默丢弃。
+                    url = part.get("image_url") or part.get("url")
+                    if isinstance(url, dict):
+                        url = url.get("url")
+                    if not url and part.get("data"):
+                        mime = part.get("mimeType") or part.get("mime_type") or "image/png"
+                        url = "data:%s;base64,%s" % (mime, part["data"])
+                    if url:
+                        blocks.append({"type": "image_url",
+                                       "image_url": {"url": str(url)}})
         elif content is None:
             blocks = []
         else:
