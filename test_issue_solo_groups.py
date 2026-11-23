@@ -162,7 +162,10 @@ class SoloHTTP(_TransportFixture, unittest.TestCase):
         self.assertEqual(status, 200, body)
         chunks = [line.removeprefix("data: ") for line in body.splitlines() if line.startswith("data: ")]
         self.assertEqual(chunks[-1], "[DONE]")
-        message, finish = (json.loads(row)["choices"][0] for row in chunks[:-1])
+        message, finish, usage = map(json.loads, chunks[:-1])
+        message, finish = message["choices"][0], finish["choices"][0]
+        self.assertEqual(usage["choices"], [])
+        self.assertEqual(usage["usage"], USAGE)
         self.assertEqual(message["delta"]["content"], "fixture reply")
         self.assertEqual(finish["finish_reason"], "stop")
         self.assert_request(QWEN, AGENT)

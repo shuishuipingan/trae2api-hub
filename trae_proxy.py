@@ -10993,9 +10993,16 @@ class Handler(BaseHTTPRequestHandler):
             chunk = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
                      "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
             self._sse_write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode("utf-8"))
-            done = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": result["finish_reason"]}]}
+            done = {**chunk, "choices": [{"index": 0, "delta": {},
+                                           "finish_reason": result["finish_reason"]}]}
             self._sse_write(("data: " + json.dumps(done, ensure_ascii=False) + "\n\n").encode("utf-8"))
+            # Report provider usage separately after the finish chunk. No usage
+            # chunk when the provider did not report counts.
+            usage = result.get("usage")
+            if isinstance(usage, dict) and usage:
+                uframe = {**done, "choices": [], "usage": usage}
+                self._sse_write(("data: " + json.dumps(uframe, ensure_ascii=False)
+                                 + "\n\n").encode("utf-8"))
             self._sse_write(b"data: [DONE]\n\n")
             self._sse_end()
             return
