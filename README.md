@@ -451,6 +451,11 @@ CN 的 SOLO/Agent 模型通过纯 HTTP 通道执行：
 
 两个入口均支持上述两个 Agent 专有模型的目录别名，也接受这些名称加 `-solo` 后缀。
 
+支持视觉的 SOLO 模型可在 `user` 消息中接收 `image_url`，其中 `image_url.url`
+必须是 `data:image/png;base64,...` 等内联图片（PNG、JPEG、WebP 或 GIF）。
+每张图的 base64 解码后最多 5 MiB，每次请求合计最多 10 MiB。
+SOLO 不接收远程图片 URL；这些请求会返回 400，而非静默丢图。
+
 示例：
 
     curl -X POST http://127.0.0.1:8791/v1/chat/completions \
